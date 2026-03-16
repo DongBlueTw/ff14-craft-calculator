@@ -194,7 +194,14 @@
 
       <!-- 授權標示 -->
       <footer class="text-center text-gray-500 text-xs mt-12 pb-8">
-        Data provided by <a href="https://github.com/ffxiv-teamcraft/ffxiv-teamcraft" target="_blank" class="text-purple-400 hover:underline">FFXIV Teamcraft</a> under the MIT License.
+        Data provided by
+        <a
+          href="https://github.com/ffxiv-teamcraft/ffxiv-teamcraft"
+          target="_blank"
+          class="text-purple-400 hover:underline"
+          >FFXIV Teamcraft</a
+        >
+        under the MIT License.
       </footer>
     </div>
 
@@ -205,7 +212,9 @@
         :class="depth === 0 ? 'bg-gray-800' : 'bg-subcard'"
       >
         <!-- 標題帶：顯示層級物件名稱與總數 -->
-        <div class="bg-black/20 p-3 border-b border-gray-700 flex justify-between items-center">
+        <div
+          class="bg-black/20 p-3 border-b border-gray-700 flex justify-between items-center"
+        >
           <div class="flex items-center gap-2">
             <span
               class="font-bold text-lg"
@@ -213,22 +222,44 @@
             >
               {{ material.name }}
             </span>
-            <span class="bg-gray-700 text-gray-300 text-sm px-2 py-0.5 rounded-full font-bold">
+            <button
+              @click="copyName(material.name)"
+              class="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-gray-700"
+              title="複製名稱"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+            <span
+              class="bg-gray-700 text-gray-300 text-sm px-2 py-0.5 rounded-full font-bold"
+            >
               x {{ material.quantity }}
             </span>
-            <span v-if="material.isCraftable" class="text-xs text-gray-400 ml-2">(產單次出: {{ material.yield }})</span>
+            <span v-if="material.isCraftable" class="text-xs text-gray-400 ml-2"
+              >(產單次出: {{ material.yield }})</span
+            >
           </div>
-          
+
           <!-- 節點此層的最佳總結算小計 -->
           <div class="text-right">
-             <span class="text-xs text-gray-400 mr-2 uppercase tracking-wide">目前小計</span>
-             <span class="font-bold text-xl text-blue-400">{{ formatGil(subtotal) }}</span>
+            <span class="text-xs text-gray-400 mr-2 uppercase tracking-wide"
+              >目前小計</span
+            >
+            <span class="font-bold text-xl text-blue-400"
+              >{{ formatGil(subtotal) }}</span
+            >
           </div>
         </div>
 
         <div class="p-4">
-          <div v-if="!material.isCraftable" class="flex items-center justify-between">
-            <span class="text-gray-400 text-sm">純粹底層素材，僅能購買或採集</span>
+          <div
+            v-if="!material.isCraftable"
+            class="flex items-center justify-between"
+          >
+            <span class="text-gray-400 text-sm"
+              >純粹底層素材，僅能購買或採集</span
+            >
             <div class="flex items-center gap-3">
               <label class="text-gray-300 font-bold">單價</label>
               <input
@@ -241,17 +272,22 @@
           </div>
 
           <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            
             <!-- 選項 1: 直接購買 -->
-            <div 
+            <div
               class="border rounded-lg p-4 relative"
               :class="selectedMethodType === 'buy' ? 'border-green-500 bg-green-900/10' : 'border-gray-700 bg-gray-800/50 opacity-80'"
             >
-              <div class="absolute top-0 right-0 p-2" v-if="selectedMethodType === 'buy'">
-                 <span class="text-green-500 font-bold bg-green-900/40 px-2 py-1 text-xs rounded">✓ 直購較划算</span>
+              <div
+                class="absolute top-0 right-0 p-2"
+                v-if="selectedMethodType === 'buy'"
+              >
+                <span
+                  class="text-green-500 font-bold bg-green-900/40 px-2 py-1 text-xs rounded"
+                  >✓ 直購較划算</span
+                >
               </div>
               <h3 class="text-gray-300 font-bold mb-4">選項 1：直接購買成品</h3>
-              
+
               <div class="flex justify-between items-center mb-4">
                 <label class="text-sm text-gray-400">市場單價</label>
                 <div class="flex items-center gap-2">
@@ -264,45 +300,66 @@
                   <span class="text-gray-500">G</span>
                 </div>
               </div>
-              <div class="pt-3 border-t border-gray-700 flex justify-between items-center">
-                 <span class="text-sm text-gray-400">需要 {{ material.quantity }} 個</span>
-                 <span class="text-lg font-bold text-white">{{ formatGil(buyCost) }}</span>
+              <div
+                class="pt-3 border-t border-gray-700 flex justify-between items-center"
+              >
+                <span class="text-sm text-gray-400"
+                  >需要 {{ material.quantity }} 個</span
+                >
+                <span class="text-lg font-bold text-white"
+                  >{{ formatGil(buyCost) }}</span
+                >
               </div>
             </div>
 
             <!-- 選項 2: 自己製作 -->
-            <div 
+            <div
               class="border rounded-lg p-4 relative flex flex-col"
-               :class="selectedMethodType === 'craft' ? 'border-green-500 bg-green-900/10' : 'border-gray-700 bg-gray-800/50 opacity-80'"
+              :class="selectedMethodType === 'craft' ? 'border-green-500 bg-green-900/10' : 'border-gray-700 bg-gray-800/50 opacity-80'"
             >
-              <div class="absolute top-0 right-0 p-2" v-if="selectedMethodType === 'craft'">
-                 <span class="text-green-500 font-bold bg-green-900/40 px-2 py-1 text-xs rounded">✓ 自製較划算</span>
+              <div
+                class="absolute top-0 right-0 p-2"
+                v-if="selectedMethodType === 'craft'"
+              >
+                <span
+                  class="text-green-500 font-bold bg-green-900/40 px-2 py-1 text-xs rounded"
+                  >✓ 自製較划算</span
+                >
               </div>
-              <h3 class="text-gray-300 font-bold mb-4">選項 2：從原料開始製作</h3>
+              <h3 class="text-gray-300 font-bold mb-4">
+                選項 2：從原料開始製作
+              </h3>
               <div class="space-y-4 flex-grow">
-                 <div class="text-sm text-gray-400 mb-2">做 {{ material.yield }} 個需要：</div>
-                 <!-- 子節點遞迴 -->
-                 <div class="pl-2 border-l border-gray-600 ml-1">
-                   <material-node
-                     v-for="subMat in material.subMaterials"
-                     :key="subMat.id"
-                     :material="subMat"
-                     :prices="prices"
-                     :depth="depth + 1"
-                   />
-                 </div>
+                <div class="text-sm text-gray-400 mb-2">
+                  做 {{ material.yield }} 個需要：
+                </div>
+                <!-- 子節點遞迴 -->
+                <div class="pl-2 border-l border-gray-600 ml-1">
+                  <material-node
+                    v-for="subMat in material.subMaterials"
+                    :key="subMat.id"
+                    :material="subMat"
+                    :prices="prices"
+                    :depth="depth + 1"
+                  />
+                </div>
               </div>
-              <div class="pt-3 mt-4 border-t border-gray-700 flex justify-between items-center bg-black/20 p-2 rounded">
+              <div
+                class="pt-3 mt-4 border-t border-gray-700 flex justify-between items-center bg-black/20 p-2 rounded"
+              >
                 <div class="text-sm text-gray-400">
                   需要結果 {{ material.quantity }} 個
-                  <div class="text-xs mt-1 text-gray-500">若有小數則依照產量比例推算</div>
+                  <div class="text-xs mt-1 text-gray-500">
+                    若有小數則依照產量比例推算
+                  </div>
                 </div>
                 <div class="text-right">
-                   <div class="text-xs text-gray-500">此方案總自製成本</div>
-                   <span class="text-lg font-bold text-white">{{ formatGil(craftCost) }}</span>
+                  <div class="text-xs text-gray-500">此方案總自製成本</div>
+                  <span class="text-lg font-bold text-white"
+                    >{{ formatGil(craftCost) }}</span
+                  >
                 </div>
               </div>
-
             </div>
           </div>
         </div>
@@ -366,7 +423,7 @@
               return 0;
             let cost = 0;
             for (const sub of props.material.subMaterials) {
-               // The calculated cost for the sub material inside
+              // The calculated cost for the sub material inside
               cost += calculateNodeCost(sub, props.prices, methods);
             }
             return (cost / props.material.yield) * props.material.quantity;
@@ -380,10 +437,16 @@
 
           // 該節點即時動態小計成本
           const subtotal = computed(() =>
-            calculateNodeCost(props.material, props.prices, methods)
+            calculateNodeCost(props.material, props.prices, methods),
           );
 
           const formatGil = (val) => Math.ceil(val).toLocaleString() + " G";
+
+          const copyName = (name) => {
+            navigator.clipboard.writeText(name).catch(err => {
+              console.error('複製失敗:', err);
+            });
+          };
 
           return {
             buyCost,
@@ -391,6 +454,7 @@
             subtotal,
             selectedMethodType,
             formatGil,
+            copyName,
           };
         },
       };
