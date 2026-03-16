@@ -390,13 +390,13 @@
         <div class="p-4">
           <div
             v-if="!material.isCraftable"
-            class="flex items-center justify-between"
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-2"
           >
             <span class="text-gray-400 text-sm"
               >純粹底層素材，僅能購買或採集</span
             >
-            <div class="flex items-center gap-3">
-              <label class="text-gray-300 font-bold">單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+              <label class="text-gray-300 font-bold whitespace-nowrap">單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
               <input
                 type="number"
                 v-model.number="prices[material.id]"
@@ -406,7 +406,7 @@
             </div>
           </div>
 
-          <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div v-else class="grid gap-4" :class="depth === 0 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'">
             <!-- 選項 1: 直接購買 -->
             <div
               class="border rounded-lg p-4 relative"
@@ -423,13 +423,13 @@
               </div>
               <h3 class="text-gray-300 font-bold mb-4">選項 1：直接購買成品</h3>
 
-              <div class="flex justify-between items-center mb-4">
+              <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
                 <label class="text-sm text-gray-400">市場單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 self-end sm:self-auto">
                   <input
                     type="number"
                     v-model.number="prices[material.id]"
-                    placeholder="不輸入則為 0"
+                    placeholder="輸入單價"
                     class="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-24 text-right focus:outline-none focus:border-green-500 text-white font-bold"
                   />
                   <span class="text-gray-500">G</span>
@@ -440,9 +440,9 @@
               >
                 <div class="text-sm text-gray-400">
                   需要 {{ material.quantity }} 個
-                  <div class="text-xs text-yellow-500/70 mt-0.5">含買家稅 5%</div>
+                  <div class="text-xs text-yellow-500/70 mt-0.5 whitespace-nowrap">含買家稅 5%</div>
                 </div>
-                <span class="text-lg font-bold text-white"
+                <span class="text-lg font-bold text-white whitespace-nowrap ml-2"
                   >{{ formatGil(buyCost) }}</span
                 >
               </div>
@@ -481,17 +481,17 @@
                 </div>
               </div>
               <div
-                class="pt-3 mt-4 border-t border-gray-700 flex justify-between items-center bg-black/20 p-2 rounded"
+                class="pt-3 mt-4 border-t border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-black/20 p-2 rounded gap-2"
               >
                 <div class="text-sm text-gray-400">
                   需要結果 {{ material.quantity }} 個
                   <div class="text-xs mt-1 text-gray-500">
-                    若有小數則依照產量比例推算
+                    若有小數依照產量比例推算
                   </div>
                 </div>
-                <div class="text-right">
-                  <div class="text-xs text-gray-500">此方案總自製成本</div>
-                  <span class="text-lg font-bold text-white"
+                <div class="text-right self-end sm:self-auto">
+                  <div class="text-xs text-gray-500 whitespace-nowrap">此方案總自製成本</div>
+                  <span class="text-lg font-bold text-white whitespace-nowrap"
                     >{{ formatGil(craftCost) }}</span
                   >
                 </div>
