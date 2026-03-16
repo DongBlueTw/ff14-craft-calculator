@@ -108,8 +108,17 @@
           class="flex flex-col md:flex-row justify-between md:items-end mb-6 pb-4 border-b border-gray-700 gap-4"
         >
           <div>
-            <h2 class="text-2xl font-bold text-white">
+            <h2 class="text-2xl font-bold text-white flex items-center gap-2">
               {{ selectedRecipe.name }}
+              <button
+                @click="copyName(selectedRecipe.name)"
+                class="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-gray-700"
+                title="複製名稱"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
             </h2>
             <p class="text-gray-400 mt-1">
               單次成品產出數量:
@@ -629,6 +638,12 @@
 
           const formatGil = (val) => Math.ceil(val).toLocaleString() + " G";
 
+          const copyName = (name) => {
+            navigator.clipboard.writeText(name).catch((err) => {
+              console.error("複製失敗:", err);
+            });
+          };
+
           return {
             searchQuery,
             searchResults,
@@ -640,6 +655,7 @@
             profit,
             taxAmount,
             formatGil,
+            copyName,
             isLoading,
             loadingMsg,
             isReady,
