@@ -157,6 +157,11 @@
         </div>
 
         <div class="space-y-3">
+          <div class="flex items-center gap-2 mb-4 bg-gray-800 p-3 rounded-lg border border-gray-700 w-fit">
+            <input type="checkbox" id="toggle-crystals" v-model="includeCrystals" class="w-5 h-5 text-purple-600 bg-gray-900 border-gray-600 rounded focus:ring-purple-500 cursor-pointer">
+            <label for="toggle-crystals" class="text-gray-300 font-bold cursor-pointer select-none">計算水晶成本</label>
+          </div>
+
           <material-node
             v-for="mat in selectedRecipe.materials"
             :key="mat.id"
@@ -268,6 +273,7 @@
     <!-- 遞迴材料節點 Template -->
     <template id="material-node-template">
       <div
+        v-if="!material.isCrystal || includeCrystals"
         class="rounded-lg border border-gray-700 transition-all overflow-hidden relative mb-4"
         :class="depth === 0 ? 'bg-gray-800' : 'bg-subcard'"
       >
@@ -449,25 +455,45 @@
         "https://raw.githubusercontent.com/ffxiv-teamcraft/ffxiv-teamcraft/master/libs/data/src/lib/json/tw/tw-items.json";
 
       // 遞迴計算節點成本核心 Function
-      function calculateNodeCost(mat, prices, methods = {}) {
-        const currentPrice = prices[mat.id] || 0; // 改由 ID 索引
-
-        if (!mat.isCraftable) {
-          return currentPrice * mat.quantity;
+      function calculateNodeCost(mat, prices, methods, includeCrystals) {
+        if (mat.isCrystal && !includeCrystals) {
+          return 0;
         }
 
-        const buyTotal = currentPrice * mat.quantity;
+        const currentPriceRaw = prices[mat.id];
+        const buyTotal = (currentPriceRaw === '' || currentPriceRaw === null || currentPriceRaw === undefined) 
+                         ? null 
+                         : Number(currentPriceRaw) * mat.quantity;
 
-        // 一般自製計算
+        if (!mat.isCraftable) {
+          return buyTotal;
+        }
+
         let craftTotalCostForYield = 0;
         if (mat.subMaterials) {
           for (const sub of mat.subMaterials) {
-            craftTotalCostForYield += calculateNodeCost(sub, prices, methods);
+            const subCost = calculateNodeCost(sub, prices, methods, includeCrystals);
+            if (subCost === null) {
+              craftTotalCostForYield = null;
+              break;
+            }
+            craftTotalCostForYield += subCost;
           }
         }
-        // 換算出所需數量的自製成本 = (一次製作總成本 / 產量) * 需要數量
-        const craftTotal = (craftTotalCostForYield / mat.yield) * mat.quantity;
-        return Math.min(buyTotal, craftTotal);
+
+        const craftTotal = craftTotalCostForYield !== null 
+                           ? (craftTotalCostForYield / mat.yield) * mat.quantity 
+                           : null;
+
+        if (buyTotal !== null && craftTotal !== null) {
+          return Math.min(buyTotal, craftTotal);
+        } else if (buyTotal !== null) {
+          return buyTotal;
+        } else if (craftTotal !== null) {
+          return craftTotal;
+        } else {
+          return null;
+        }
       }
 
       // Vue Component: 遞迴材料節點
@@ -481,21 +507,23 @@
         },
         setup(props) {
           const methods = inject("methods");
+          const includeCrystals = inject("includeCrystals");
 
           // 直購此節點的所需成本
           const buyCost = computed(() => {
-            const singlePrice = props.prices[props.material.id] || 0;
-            return singlePrice * props.material.quantity;
+            const currentPriceRaw = props.prices[props.material.id];
+            if (currentPriceRaw === '' || currentPriceRaw === null || currentPriceRaw === undefined) return null;
+            return Number(currentPriceRaw) * props.material.quantity;
           });
 
           // 原始由下層遞迴算上來的自製成本
           const craftCost = computed(() => {
-            if (!props.material.isCraftable || !props.material.subMaterials)
-              return 0;
+            if (!props.material.isCraftable || !props.material.subMaterials) return null;
             let cost = 0;
             for (const sub of props.material.subMaterials) {
-              // The calculated cost for the sub material inside
-              cost += calculateNodeCost(sub, props.prices, methods);
+              const subCost = calculateNodeCost(sub, props.prices, methods, includeCrystals.value);
+              if (subCost === null) return null;
+              cost += subCost;
             }
             return (cost / props.material.yield) * props.material.quantity;
           });
@@ -503,15 +531,28 @@
           // 用於 UI 渲染：最終決定使用的方案
           const selectedMethodType = computed(() => {
             if (!props.material.isCraftable) return "buy";
-            return craftCost.value < buyCost.value ? "craft" : "buy";
+            
+            if (buyCost.value !== null && craftCost.value !== null) {
+              return craftCost.value < buyCost.value ? "craft" : "buy";
+            } else if (buyCost.value !== null) {
+              return "buy";
+            } else if (craftCost.value !== null) {
+              return "craft";
+            } else {
+              return "none";
+            }
           });
 
           // 該節點即時動態小計成本
-          const subtotal = computed(() =>
-            calculateNodeCost(props.material, props.prices, methods),
-          );
+          const subtotal = computed(() => {
+            if (props.material.isCrystal && !includeCrystals.value) return 0;
+            return calculateNodeCost(props.material, props.prices, methods, includeCrystals.value);
+          });
 
-          const formatGil = (val) => Math.ceil(val).toLocaleString() + " G";
+          const formatGil = (val) => {
+            if (val === null || val === undefined) return "---";
+            return Math.ceil(val).toLocaleString() + " G";
+          };
 
           const copyName = (name) => {
             navigator.clipboard.writeText(name).catch((err) => {
@@ -520,6 +561,7 @@
           };
 
           return {
+            includeCrystals,
             buyCost,
             craftCost,
             subtotal,
@@ -553,6 +595,8 @@
 
           // 依賴注入讓所有遞迴子元件共享 method state
           provide("methods", methods);
+          const includeCrystals = ref(true);
+          provide("includeCrystals", includeCrystals);
 
           const initData = async () => {
             try {
@@ -608,6 +652,7 @@
                     name: matName,
                     quantity: qty,
                     isCraftable: true,
+                    isCrystal: matId >= 2 && matId <= 19,
                     yield: subRecipe.yields || 1, // Teamcraft JSON中的屬性名是 yields
                     subMaterials: buildRecipeTree(subRecipe).materials, // 遞迴
                   });
@@ -617,6 +662,7 @@
                     name: matName,
                     quantity: qty,
                     isCraftable: false,
+                    isCrystal: matId >= 2 && matId <= 19,
                     yield: 1,
                     subMaterials: null,
                   });
@@ -678,27 +724,34 @@
             if (!selectedRecipe.value) return 0;
             let total = 0;
             for (const mat of selectedRecipe.value.materials) {
-              total += calculateNodeCost(mat, prices, methods);
+              const subCost = calculateNodeCost(mat, prices, methods, includeCrystals.value);
+              if (subCost === null) return null;
+              total += subCost;
             }
             return total;
           });
 
           const salePrice = computed(() => {
-            if (!selectedRecipe.value) return 0;
-            return prices[selectedRecipe.value.resultId] || 0;
+            if (!selectedRecipe.value) return null;
+            const p = prices[selectedRecipe.value.resultId];
+            return (p === '' || p === null || p === undefined) ? null : Number(p);
           });
 
-          const taxAmount = computed(
-            () => salePrice.value * (selectedRecipe.value?.yield || 1) * 0.05,
-          );
+          const taxAmount = computed(() => {
+            if (salePrice.value === null) return null;
+            return salePrice.value * (selectedRecipe.value?.yield || 1) * 0.05;
+          });
 
           const profit = computed(() => {
-            if (!selectedRecipe.value) return 0;
+            if (!selectedRecipe.value || totalCost.value === null || salePrice.value === null) return null;
             const totalRevenue = salePrice.value * selectedRecipe.value.yield;
             return totalRevenue - totalCost.value - taxAmount.value;
           });
 
-          const formatGil = (val) => Math.ceil(val).toLocaleString() + " G";
+          const formatGil = (val) => {
+            if (val === null || val === undefined) return "---";
+            return Math.ceil(val).toLocaleString() + " G";
+          };
 
           const copyName = (name) => {
             navigator.clipboard.writeText(name).catch((err) => {
@@ -707,6 +760,7 @@
           };
 
           return {
+            includeCrystals,
             searchQuery,
             searchResults,
             doSearch,
