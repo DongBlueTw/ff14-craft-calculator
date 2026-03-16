@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FF14 製作成本與利潤計算機</title>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS (追求高質感與響應式切版) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        background-color: #121826;
+        color: #e2e8f0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      .bg-card {
+        background-color: #1f2937;
+      }
+      .bg-subcard {
+        background-color: #374151;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1f2937;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #4b5563;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+      }
+      /* 隱藏數字 Input 的上下箭頭 */
+      input[type="number"]::-webkit-inner-spin-button,
+      input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body class="p-4 md:p-8 relative">
+    <div
+      id="app"
+      class="max-w-5xl mx-auto space-y-6"
+      :class="{ 'opacity-0': isLoading, 'transition-opacity duration-500': true }"
+    >
+      <!-- 全螢幕 Loading 畫面 -->
+      <div
+        v-if="isLoading"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/90 backdrop-blur-sm"
+      >
+        <div class="text-center">
+          <div
+            class="inline-block w-16 h-16 border-4 border-purple-500 border-t-transparent border-solid rounded-full animate-spin mb-4"
+          ></div>
+          <h2 class="text-2xl font-bold text-white mb-2">準備資料中...</h2>
+          <p class="text-gray-400">{{ loadingMsg }}</p>
+        </div>
+      </div>
+
+      <!-- 頂部標題與搜尋 -->
+      <div class="bg-card p-6 rounded-xl shadow-xl border border-gray-700">
+        <h1
+          class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400"
+        >
+          FF14 製作成本與利潤計算機
+        </h1>
+
+        <div class="relative z-40">
+          <input
+            type="text"
+            v-model="searchQuery"
+            @input="doSearch"
+            :disabled="isLoading"
+            placeholder="輸入配方名稱搜尋 (例如: 巧力幻藥, 薩維奈)"
+            class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-bold disabled:opacity-50"
+          />
+          <div
+            v-if="searchResults.length > 0"
+            class="absolute w-full mt-2 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl max-h-60 overflow-y-auto"
+          >
+            <button
+              v-for="res in searchResults"
+              :key="res.rawRecipe.id"
+              @click="selectRecipe(res)"
+              class="w-full text-left px-4 py-3 hover:bg-gray-700 focus:bg-gray-700 transition-colors border-b border-gray-700 last:border-0"
+            >
+              <span class="font-bold text-blue-300">{{ res.name }}</span>
+              <span class="text-gray-400 ml-2 text-sm"
+                >(單次產出: {{ res.yield }})</span
+              >
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 配方材料細節 -->
+      <div
+        v-if="selectedRecipe"
+        class="bg-card p-6 rounded-xl shadow-xl border border-gray-700"
+      >
+        <div
+          class="flex flex-col md:flex-row justify-between md:items-end mb-6 pb-4 border-b border-gray-700 gap-4"
+        >
+          <div>
+            <h2 class="text-2xl font-bold text-white">
+              {{ selectedRecipe.name }}
+            </h2>
+            <p class="text-gray-400 mt-1">
+              單次成品產出數量:
+              <span class="text-yellow-400 font-bold ml-1"
+                >{{selectedRecipe.yield}}</span
+              >
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <label class="font-bold text-gray-300 whitespace-nowrap"
+              >成品單價 (市價)</label
+            >
+            <div class="relative">
+              <input
+                type="number"
+                v-model.number="prices[selectedRecipe.resultId]"
+                placeholder="輸入價格"
+                class="bg-gray-900 border border-gray-600 rounded-lg pl-3 pr-8 py-2 w-32 md:w-40 text-right focus:outline-none focus:border-blue-500 text-white font-bold text-xl"
+              />
+              <span class="absolute right-3 top-2.5 text-gray-400 font-bold"
+                >G</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <material-node
+            v-for="mat in selectedRecipe.materials"
+            :key="mat.id"
+            :material="mat"
+            :prices="prices"
+            :depth="0"
+          />
+        </div>
+
+        <!-- 結算面板 -->
+        <div
+          class="mt-8 bg-gray-900 rounded-xl p-6 border border-gray-700 shadow-inner"
+        >
+          <h3
+            class="text-lg font-bold text-gray-400 mb-4 border-b border-gray-800 pb-2"
+          >
+            單次製作總結算 (產出 {{selectedRecipe.yield}} 個)
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+            <div>
+              <div class="text-gray-500 text-sm font-semibold mb-1">
+                最佳材料總成本
+              </div>
+              <div class="text-2xl font-bold text-red-400">
+                {{ formatGil(totalCost) }}
+              </div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-semibold mb-1">
+                市場手續費 (預估 5%)
+              </div>
+              <div class="text-2xl font-bold text-yellow-500">
+                {{ formatGil(taxAmount) }}
+              </div>
+            </div>
+            <div>
+              <div class="text-gray-500 text-sm font-semibold mb-1">
+                預估純利潤
+              </div>
+              <div
+                class="text-3xl font-bold"
+                :class="profit >= 0 ? 'text-green-400' : 'text-red-500'"
+              >
+                {{ formatGil(profit) }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空狀態提示 -->
+      <div v-else class="text-center py-16 text-gray-500 font-bold">
+        請從上方搜尋並選擇一個配方開始計算
+      </div>
+
+      <!-- 授權標示 -->
+      <footer class="text-center text-gray-500 text-xs mt-12 pb-8">
+        Data provided by <a href="https://github.com/ffxiv-teamcraft/ffxiv-teamcraft" target="_blank" class="text-purple-400 hover:underline">FFXIV Teamcraft</a> under the MIT License.
+      </footer>
+    </div>
+
+    <!-- 遞迴材料節點 Template -->
+    <template id="material-node-template">
+      <div
+        class="rounded-lg border border-gray-700 transition-all overflow-hidden relative mb-4"
+        :class="depth === 0 ? 'bg-gray-800' : 'bg-subcard'"
+      >
+        <!-- 標題帶：顯示層級物件名稱與總數 -->
+        <div class="bg-black/20 p-3 border-b border-gray-700 flex justify-between items-center">
+          <div class="flex items-center gap-2">
+            <span
+              class="font-bold text-lg"
+              :class="material.isCraftable ? 'text-purple-300' : 'text-green-300'"
+            >
+              {{ material.name }}
+            </span>
+            <span class="bg-gray-700 text-gray-300 text-sm px-2 py-0.5 rounded-full font-bold">
+              x {{ material.quantity }}
+            </span>
+            <span v-if="material.isCraftable" class="text-xs text-gray-400 ml-2">(產單次出: {{ material.yield }})</span>
+          </div>
+          
+          <!-- 節點此層的最佳總結算小計 -->
+          <div class="text-right">
+             <span class="text-xs text-gray-400 mr-2 uppercase tracking-wide">目前小計</span>
+             <span class="font-bold text-xl text-blue-400">{{ formatGil(subtotal) }}</span>
+          </div>
+        </div>
+
+        <div class="p-4">
+          <div v-if="!material.isCraftable" class="flex items-center justify-between">
+            <span class="text-gray-400 text-sm">純粹底層素材，僅能購買或採集</span>
+            <div class="flex items-center gap-3">
+              <label class="text-gray-300 font-bold">單價</label>
+              <input
+                type="number"
+                v-model.number="prices[material.id]"
+                placeholder="輸入單價"
+                class="bg-gray-900 border border-gray-600 rounded px-3 py-1.5 w-24 md:w-32 text-right focus:outline-none focus:border-blue-500 text-white font-bold"
+              />
+            </div>
+          </div>
+
+          <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            
+            <!-- 選項 1: 直接購買 -->
+            <div 
+              class="border rounded-lg p-4 relative"
+              :class="selectedMethodType === 'buy' ? 'border-green-500 bg-green-900/10' : 'border-gray-700 bg-gray-800/50 opacity-80'"
+            >
+              <div class="absolute top-0 right-0 p-2" v-if="selectedMethodType === 'buy'">
+                 <span class="text-green-500 font-bold bg-green-900/40 px-2 py-1 text-xs rounded">✓ 直購較划算</span>
+              </div>
+              <h3 class="text-gray-300 font-bold mb-4">選項 1：直接購買成品</h3>
+              
+              <div class="flex justify-between items-center mb-4">
+                <label class="text-sm text-gray-400">市場單價</label>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="number"
+                    v-model.number="prices[material.id]"
+                    placeholder="不輸入則為 0"
+                    class="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-24 text-right focus:outline-none focus:border-green-500 text-white font-bold"
+                  />
+                  <span class="text-gray-500">G</span>
+                </div>
+              </div>
+              <div class="pt-3 border-t border-gray-700 flex justify-between items-center">
+                 <span class="text-sm text-gray-400">需要 {{ material.quantity }} 個</span>
+                 <span class="text-lg font-bold text-white">{{ formatGil(buyCost) }}</span>
+              </div>
+            </div>
+
+            <!-- 選項 2: 自己製作 -->
+            <div 
+              class="border rounded-lg p-4 relative flex flex-col"
+               :class="selectedMethodType === 'craft' ? 'border-green-500 bg-green-900/10' : 'border-gray-700 bg-gray-800/50 opacity-80'"
+            >
+              <div class="absolute top-0 right-0 p-2" v-if="selectedMethodType === 'craft'">
+                 <span class="text-green-500 font-bold bg-green-900/40 px-2 py-1 text-xs rounded">✓ 自製較划算</span>
+              </div>
+              <h3 class="text-gray-300 font-bold mb-4">選項 2：從原料開始製作</h3>
+              <div class="space-y-4 flex-grow">
+                 <div class="text-sm text-gray-400 mb-2">做 {{ material.yield }} 個需要：</div>
+                 <!-- 子節點遞迴 -->
+                 <div class="pl-2 border-l border-gray-600 ml-1">
+                   <material-node
+                     v-for="subMat in material.subMaterials"
+                     :key="subMat.id"
+                     :material="subMat"
+                     :prices="prices"
+                     :depth="depth + 1"
+                   />
+                 </div>
+              </div>
+              <div class="pt-3 mt-4 border-t border-gray-700 flex justify-between items-center bg-black/20 p-2 rounded">
+                <div class="text-sm text-gray-400">
+                  需要結果 {{ material.quantity }} 個
+                  <div class="text-xs mt-1 text-gray-500">若有小數則依照產量比例推算</div>
+                </div>
+                <div class="text-right">
+                   <div class="text-xs text-gray-500">此方案總自製成本</div>
+                   <span class="text-lg font-bold text-white">{{ formatGil(craftCost) }}</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <script>
+      const { createApp, ref, computed, reactive, inject, provide, onMounted } =
+        Vue;
+
+      // 替換 Mock API，改用真實的 Github JSON
+      // 取得 Teamcraft Recipe Database
+      const RECIPES_URL =
+        "https://raw.githubusercontent.com/ffxiv-teamcraft/ffxiv-teamcraft/master/libs/data/src/lib/json/recipes.json";
+      const ITEMS_TW_URL =
+        "https://raw.githubusercontent.com/ffxiv-teamcraft/ffxiv-teamcraft/master/libs/data/src/lib/json/tw/tw-items.json";
+
+      // 遞迴計算節點成本核心 Function
+      function calculateNodeCost(mat, prices, methods = {}) {
+        const currentPrice = prices[mat.id] || 0; // 改由 ID 索引
+
+        if (!mat.isCraftable) {
+          return currentPrice * mat.quantity;
+        }
+
+        const buyTotal = currentPrice * mat.quantity;
+
+        // 一般自製計算
+        let craftTotalCostForYield = 0;
+        if (mat.subMaterials) {
+          for (const sub of mat.subMaterials) {
+            craftTotalCostForYield += calculateNodeCost(sub, prices, methods);
+          }
+        }
+        // 換算出所需數量的自製成本 = (一次製作總成本 / 產量) * 需要數量
+        const craftTotal = (craftTotalCostForYield / mat.yield) * mat.quantity;
+        return Math.min(buyTotal, craftTotal);
+      }
+
+      // Vue Component: 遞迴材料節點
+      const MaterialNode = {
+        name: "material-node",
+        template: "#material-node-template",
+        props: {
+          material: Object,
+          prices: Object,
+          depth: Number,
+        },
+        setup(props) {
+          const methods = inject("methods");
+
+          // 直購此節點的所需成本
+          const buyCost = computed(() => {
+            const singlePrice = props.prices[props.material.id] || 0;
+            return singlePrice * props.material.quantity;
+          });
+
+          // 原始由下層遞迴算上來的自製成本
+          const craftCost = computed(() => {
+            if (!props.material.isCraftable || !props.material.subMaterials)
+              return 0;
+            let cost = 0;
+            for (const sub of props.material.subMaterials) {
+               // The calculated cost for the sub material inside
+              cost += calculateNodeCost(sub, props.prices, methods);
+            }
+            return (cost / props.material.yield) * props.material.quantity;
+          });
+
+          // 用於 UI 渲染：最終決定使用的方案
+          const selectedMethodType = computed(() => {
+            if (!props.material.isCraftable) return "buy";
+            return craftCost.value < buyCost.value ? "craft" : "buy";
+          });
+
+          // 該節點即時動態小計成本
+          const subtotal = computed(() =>
+            calculateNodeCost(props.material, props.prices, methods)
+          );
+
+          const formatGil = (val) => Math.ceil(val).toLocaleString() + " G";
+
+          return {
+            buyCost,
+            craftCost,
+            subtotal,
+            selectedMethodType,
+            formatGil,
+          };
+        },
+      };
+
+      // Vue Root Instance
+      createApp({
+        components: { MaterialNode },
+        setup() {
+          const searchQuery = ref("");
+          const searchResults = ref([]);
+          const selectedRecipe = ref(null);
+
+          // Global State
+          const prices = reactive({}); // { '材料ID': 價格數值 }
+          const methods = reactive({}); // { '材料ID': 'auto'|'craft'|'buy' }
+
+          // API Data States
+          const isReady = ref(false);
+          const isLoading = ref(true);
+          const loadingMsg = ref("正在連線取得配方與中文翻譯庫 (~15MB)...");
+
+          let rawRecipes = {};
+          let rawItemNames = {};
+          let resultToRecipeMap = {}; // itemId -> recipe object (用以快速反查半成品配方)
+
+          // 依賴注入讓所有遞迴子元件共享 method state
+          provide("methods", methods);
+
+          const initData = async () => {
+            try {
+              loadingMsg.value = "正在下載中文物品資料庫... (請稍候)";
+              const itemsRes = await fetch(ITEMS_TW_URL);
+              rawItemNames = await itemsRes.json();
+
+              loadingMsg.value = "正在下載配方資料庫... (檔案較大，請耐心等待)";
+              const recipesRes = await fetch(RECIPES_URL);
+              const recipesArray = await recipesRes.json();
+
+              loadingMsg.value = "正在建立計算機索引...";
+
+              // 確保索引沒有阻塞太久，用 setTimeout 放開主線程
+              await new Promise((r) => setTimeout(r, 10));
+
+              for (const r of Object.values(recipesArray)) {
+                if (!resultToRecipeMap[r.result]) {
+                  resultToRecipeMap[r.result] = r;
+                }
+              }
+              rawRecipes = recipesArray;
+
+              isReady.value = true;
+              isLoading.value = false;
+            } catch (err) {
+              console.error("Data loading error:", err);
+              loadingMsg.value =
+                "資料庫載入失敗，可能發生網路錯誤。請重新整理。";
+            }
+          };
+
+          // 將 Teamcraft Recipe JSON Node 轉換為前端巢狀資料結構
+          const buildRecipeTree = (recipeObj) => {
+            const resultId = recipeObj.result;
+            const itemName =
+              rawItemNames[resultId]?.tw || `Unknown Item (${resultId})`;
+
+            const materials = [];
+            // 解析食材陣列 (ingredients) [{id: 5106, amount: 2}, ...]
+            if (recipeObj.ingredients) {
+              for (const ing of recipeObj.ingredients) {
+                const matId = ing.id;
+                const qty = ing.amount;
+                const matName =
+                  rawItemNames[matId]?.tw || `Unknown Item (${matId})`;
+
+                // 判斷這個材料是不是也可以手作
+                const subRecipe = resultToRecipeMap[matId];
+                if (subRecipe) {
+                  materials.push({
+                    id: matId,
+                    name: matName,
+                    quantity: qty,
+                    isCraftable: true,
+                    yield: subRecipe.yields || 1, // Teamcraft JSON中的屬性名是 yields
+                    subMaterials: buildRecipeTree(subRecipe).materials, // 遞迴
+                  });
+                } else {
+                  materials.push({
+                    id: matId,
+                    name: matName,
+                    quantity: qty,
+                    isCraftable: false,
+                    yield: 1,
+                    subMaterials: null,
+                  });
+                }
+              }
+            }
+
+            return {
+              id: recipeObj.id,
+              resultId: resultId,
+              name: itemName,
+              yield: recipeObj.yields || 1,
+              materials: materials,
+            };
+          };
+
+          const doSearch = () => {
+            if (!searchQuery.value || searchQuery.value.length < 2) {
+              searchResults.value = [];
+              return;
+            }
+
+            const q = searchQuery.value.toLowerCase();
+            const maxResults = 50;
+            const results = [];
+
+            // 從物品庫對照翻譯，只找我們有配方的物品
+            for (const [itemId, names] of Object.entries(rawItemNames)) {
+              if (names.tw && names.tw.toLowerCase().includes(q)) {
+                const possibleRecipe = resultToRecipeMap[itemId];
+                if (possibleRecipe) {
+                  results.push({
+                    rawRecipe: possibleRecipe,
+                    name: names.tw,
+                    yield: possibleRecipe.yields || 1,
+                  });
+                  if (results.length >= maxResults) break;
+                }
+              }
+            }
+            searchResults.value = results;
+          };
+
+          const selectRecipe = (itemResult) => {
+            selectedRecipe.value = buildRecipeTree(itemResult.rawRecipe);
+            searchQuery.value = "";
+            searchResults.value = [];
+            if (!(selectedRecipe.value.resultId in prices)) {
+              prices[selectedRecipe.value.resultId] = 0;
+            }
+          };
+
+          // 生命週期：掛載時呼叫資料抓取
+          onMounted(() => {
+            initData();
+          });
+
+          const totalCost = computed(() => {
+            if (!selectedRecipe.value) return 0;
+            let total = 0;
+            for (const mat of selectedRecipe.value.materials) {
+              total += calculateNodeCost(mat, prices, methods);
+            }
+            return total;
+          });
+
+          const salePrice = computed(() => {
+            if (!selectedRecipe.value) return 0;
+            return prices[selectedRecipe.value.resultId] || 0;
+          });
+
+          const taxAmount = computed(
+            () => salePrice.value * (selectedRecipe.value?.yield || 1) * 0.05,
+          );
+
+          const profit = computed(() => {
+            if (!selectedRecipe.value) return 0;
+            const totalRevenue = salePrice.value * selectedRecipe.value.yield;
+            return totalRevenue - totalCost.value - taxAmount.value;
+          });
+
+          const formatGil = (val) => Math.ceil(val).toLocaleString() + " G";
+
+          return {
+            searchQuery,
+            searchResults,
+            doSearch,
+            selectRecipe,
+            selectedRecipe,
+            prices,
+            totalCost,
+            profit,
+            taxAmount,
+            formatGil,
+            isLoading,
+            loadingMsg,
+            isReady,
+          };
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>
