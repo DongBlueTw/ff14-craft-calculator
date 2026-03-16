@@ -138,20 +138,46 @@
               >
             </p>
           </div>
-          <div class="flex items-center gap-3">
-            <label class="font-bold text-gray-300 whitespace-nowrap"
-              >成品單價 (市價)</label
-            >
-            <div class="relative">
-              <input
-                type="number"
-                v-model.number="prices[selectedRecipe.resultId]"
-                placeholder="輸入價格"
-                class="bg-gray-900 border border-gray-600 rounded-lg pl-3 pr-8 py-2 w-32 md:w-40 text-right focus:outline-none focus:border-blue-500 text-white font-bold text-xl"
-              />
-              <span class="absolute right-3 top-2.5 text-gray-400 font-bold"
-                >G</span
+          <div class="flex flex-col items-end gap-3">
+            <!-- 模式切換與稅率 -->
+            <div class="flex flex-wrap items-center justify-end gap-3">
+              <select
+                v-model="calcMode"
+                class="bg-gray-900 border border-gray-600 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-blue-500 font-bold"
               >
+                <option value="earn">【模式一：賺錢 (賣出)】</option>
+                <option value="save">【模式二：省錢 (自用)】</option>
+              </select>
+              <select
+                v-if="calcMode === 'earn'"
+                v-model.number="sellTaxRate"
+                class="bg-gray-900 border border-gray-600 rounded-lg px-3 py-1.5 text-yellow-400 focus:outline-none focus:border-yellow-500 font-bold"
+              >
+                <option :value="0">賣出稅率: 0%</option>
+                <option :value="0.01">賣出稅率: 1%</option>
+                <option :value="0.02">賣出稅率: 2%</option>
+                <option :value="0.03">賣出稅率: 3%</option>
+                <option :value="0.04">賣出稅率: 4%</option>
+                <option :value="0.05">賣出稅率: 5%</option>
+              </select>
+            </div>
+
+            <!-- 成品單價 -->
+            <div class="flex items-center gap-3">
+              <label class="font-bold text-gray-300 whitespace-nowrap"
+                >成品單價 (市價)<span v-if="calcMode === 'save'" class="text-xs text-yellow-500/70 ml-1">(不含稅)</span></label
+              >
+              <div class="relative">
+                <input
+                  type="number"
+                  v-model.number="prices[selectedRecipe.resultId]"
+                  placeholder="輸入價格"
+                  class="bg-gray-900 border border-gray-600 rounded-lg pl-3 pr-8 py-2 w-32 md:w-40 text-right focus:outline-none focus:border-blue-500 text-white font-bold text-xl"
+                />
+                <span class="absolute right-3 top-2.5 text-gray-400 font-bold"
+                  >G</span
+                >
+              </div>
             </div>
           </div>
         </div>
@@ -180,10 +206,11 @@
           >
             單次製作總結算 (產出 {{selectedRecipe.yield}} 個)
           </h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+          <!-- 模式一：賺錢結算 -->
+          <div v-if="calcMode === 'earn'" class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
             <div>
               <div class="text-gray-500 text-sm font-semibold mb-1">
-                最佳材料總成本
+                最佳材料總成本 (皆已含買家稅)
               </div>
               <div class="text-2xl font-bold text-red-400">
                 {{ formatGil(totalCost) }}
@@ -191,7 +218,7 @@
             </div>
             <div>
               <div class="text-gray-500 text-sm font-semibold mb-1">
-                市場手續費 (預估 5%)
+                賣出預估稅金 ({{ (sellTaxRate * 100).toFixed(0) }}%)
               </div>
               <div class="text-2xl font-bold text-yellow-500">
                 {{ formatGil(taxAmount) }}
@@ -208,6 +235,37 @@
                 {{ formatGil(profit) }}
               </div>
             </div>
+          </div>
+
+          <!-- 模式二：省錢結算 -->
+          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center max-w-2xl mx-auto">
+            <div>
+              <div class="text-gray-500 text-sm font-semibold mb-1">
+                自製最佳總成本 (皆已含買家稅)
+              </div>
+              <div class="text-2xl font-bold text-blue-400">
+                {{ formatGil(totalCost) }}
+              </div>
+            </div>
+             <div>
+               <div class="text-gray-500 text-sm font-semibold mb-1">
+                 買現成總花費 (成品市價 + 5% 買家稅)
+               </div>
+               <div class="text-2xl font-bold text-red-400">
+                 {{ formatGil(directBuyCost) }}
+               </div>
+             </div>
+             <div class="col-span-1 md:col-span-2 mt-2 p-4 rounded-lg bg-gray-800/50 border border-gray-700">
+               <div v-if="saveDiff > 0" class="text-2xl font-bold text-green-400">
+                 自己做比較省！省下 {{ formatGil(saveDiff) }}
+               </div>
+               <div v-else-if="saveDiff < 0" class="text-2xl font-bold text-red-500">
+                 直接買板子現成！自製會虧 {{ formatGil(Math.abs(saveDiff)) }}
+               </div>
+               <div v-else class="text-2xl font-bold text-gray-400">
+                 成本一樣 ({{ formatGil(0) }})
+               </div>
+             </div>
           </div>
         </div>
       </div>
@@ -338,7 +396,7 @@
               >純粹底層素材，僅能購買或採集</span
             >
             <div class="flex items-center gap-3">
-              <label class="text-gray-300 font-bold">單價</label>
+              <label class="text-gray-300 font-bold">單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
               <input
                 type="number"
                 v-model.number="prices[material.id]"
@@ -366,7 +424,7 @@
               <h3 class="text-gray-300 font-bold mb-4">選項 1：直接購買成品</h3>
 
               <div class="flex justify-between items-center mb-4">
-                <label class="text-sm text-gray-400">市場單價</label>
+                <label class="text-sm text-gray-400">市場單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
                 <div class="flex items-center gap-2">
                   <input
                     type="number"
@@ -380,9 +438,10 @@
               <div
                 class="pt-3 border-t border-gray-700 flex justify-between items-center"
               >
-                <span class="text-sm text-gray-400"
-                  >需要 {{ material.quantity }} 個</span
-                >
+                <div class="text-sm text-gray-400">
+                  需要 {{ material.quantity }} 個
+                  <div class="text-xs text-yellow-500/70 mt-0.5">含買家稅 5%</div>
+                </div>
                 <span class="text-lg font-bold text-white"
                   >{{ formatGil(buyCost) }}</span
                 >
@@ -463,7 +522,7 @@
         const currentPriceRaw = prices[mat.id];
         const buyTotal = (currentPriceRaw === '' || currentPriceRaw === null || currentPriceRaw === undefined) 
                          ? null 
-                         : Number(currentPriceRaw) * mat.quantity;
+                         : Number(currentPriceRaw) * mat.quantity * 1.05; // 買家 5% 稅金
 
         if (!mat.isCraftable) {
           return buyTotal;
@@ -513,7 +572,7 @@
           const buyCost = computed(() => {
             const currentPriceRaw = props.prices[props.material.id];
             if (currentPriceRaw === '' || currentPriceRaw === null || currentPriceRaw === undefined) return null;
-            return Number(currentPriceRaw) * props.material.quantity;
+            return Number(currentPriceRaw) * props.material.quantity * 1.05; // 買家 5% 稅金
           });
 
           // 原始由下層遞迴算上來的自製成本
@@ -583,6 +642,9 @@
           // Global State
           const prices = reactive({}); // { '材料ID': 價格數值 }
           const methods = reactive({}); // { '材料ID': 'auto'|'craft'|'buy' }
+
+          const calcMode = ref("earn");
+          const sellTaxRate = ref(0.05);
 
           // API Data States
           const isReady = ref(false);
@@ -739,13 +801,23 @@
 
           const taxAmount = computed(() => {
             if (salePrice.value === null) return null;
-            return salePrice.value * (selectedRecipe.value?.yield || 1) * 0.05;
+            return salePrice.value * (selectedRecipe.value?.yield || 1) * sellTaxRate.value;
           });
 
           const profit = computed(() => {
             if (!selectedRecipe.value || totalCost.value === null || salePrice.value === null) return null;
             const totalRevenue = salePrice.value * selectedRecipe.value.yield;
-            return totalRevenue - totalCost.value - taxAmount.value;
+            return totalRevenue - taxAmount.value - totalCost.value;
+          });
+
+          const directBuyCost = computed(() => {
+            if (!selectedRecipe.value || salePrice.value === null) return null;
+            return salePrice.value * selectedRecipe.value.yield * 1.05;
+          });
+
+          const saveDiff = computed(() => {
+            if (directBuyCost.value === null || totalCost.value === null) return null;
+            return directBuyCost.value - totalCost.value;
           });
 
           const formatGil = (val) => {
@@ -760,6 +832,8 @@
           };
 
           return {
+            calcMode,
+            sellTaxRate,
             includeCrystals,
             searchQuery,
             searchResults,
@@ -770,6 +844,8 @@
             totalCost,
             profit,
             taxAmount,
+            directBuyCost,
+            saveDiff,
             formatGil,
             copyName,
             isLoading,
