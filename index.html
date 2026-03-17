@@ -24,6 +24,7 @@
       }
       ::-webkit-scrollbar {
         width: 8px;
+        height: 8px;
       }
       ::-webkit-scrollbar-track {
         background: #1f2937;
@@ -139,6 +140,19 @@
             </p>
           </div>
           <div class="flex flex-col items-end gap-3">
+            <!-- 視圖切換器 -->
+            <div class="flex bg-gray-900 rounded-lg p-1 border border-gray-700 w-full sm:w-auto mt-2 sm:mt-0 shadow-inner">
+              <button @click="viewMode = 'list'"
+                      class="px-4 py-1.5 rounded-md text-sm font-bold transition-all w-1/2 sm:w-auto"
+                      :class="viewMode === 'list' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-white'">
+                列表模式
+              </button>
+              <button @click="viewMode = 'tree'"
+                      class="px-4 py-1.5 rounded-md text-sm font-bold transition-all w-1/2 sm:w-auto"
+                      :class="viewMode === 'tree' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-white'">
+                樹狀模式 (Tree)
+              </button>
+            </div>
             <!-- 模式切換與稅率 -->
             <div class="flex flex-wrap items-center justify-end gap-3">
               <select
@@ -165,7 +179,11 @@
             <!-- 成品單價 -->
             <div class="flex items-center gap-3">
               <label class="font-bold text-gray-300 whitespace-nowrap"
-                >成品單價 (市價)<span v-if="calcMode === 'save'" class="text-xs text-yellow-500/70 ml-1">(不含稅)</span></label
+                >成品單價 (市價)<span
+                  v-if="calcMode === 'save'"
+                  class="text-xs text-yellow-500/70 ml-1"
+                  >(不含稅)</span
+                ></label
               >
               <div class="relative">
                 <input
@@ -183,18 +201,55 @@
         </div>
 
         <div class="space-y-3">
-          <div class="flex items-center gap-2 mb-4 bg-gray-800 p-3 rounded-lg border border-gray-700 w-fit">
-            <input type="checkbox" id="toggle-crystals" v-model="includeCrystals" class="w-5 h-5 text-purple-600 bg-gray-900 border-gray-600 rounded focus:ring-purple-500 cursor-pointer">
-            <label for="toggle-crystals" class="text-gray-300 font-bold cursor-pointer select-none">計算水晶成本</label>
+          <div
+            class="flex items-center gap-2 mb-4 bg-gray-800 p-3 rounded-lg border border-gray-700 w-fit"
+          >
+            <input
+              type="checkbox"
+              id="toggle-crystals"
+              v-model="includeCrystals"
+              class="w-5 h-5 text-purple-600 bg-gray-900 border-gray-600 rounded focus:ring-purple-500 cursor-pointer"
+            />
+            <label
+              for="toggle-crystals"
+              class="text-gray-300 font-bold cursor-pointer select-none"
+              >計算水晶成本</label
+            >
           </div>
 
-          <material-node
-            v-for="mat in selectedRecipe.materials"
-            :key="mat.id"
-            :material="mat"
-            :prices="prices"
-            :depth="0"
-          />
+          <template v-if="viewMode === 'list'">
+            <material-node
+              v-for="mat in selectedRecipe.materials"
+              :key="mat.id"
+              :material="mat"
+              :prices="prices"
+              :depth="0"
+            />
+          </template>
+
+          <template v-else-if="viewMode === 'tree'">
+            <div class="overflow-x-auto w-full pb-8 pt-6 custom-scrollbar bg-[#161d2d] rounded-xl border border-gray-700 shadow-inner inline-block">
+              <div class="min-w-max flex flex-col items-center px-8">
+                <!-- 根節點 (配方本身) -->
+                <tree-node
+                  :isRoot="true"
+                  :material="{
+                    id: selectedRecipe.resultId,
+                    name: selectedRecipe.name,
+                    quantity: selectedRecipe.yield,
+                    yield: selectedRecipe.yield,
+                    isCraftable: true,
+                    isCrystal: false,
+                    subMaterials: selectedRecipe.materials
+                  }"
+                  :prices="prices"
+                  :depth="0"
+                  :index="0"
+                  :total="1"
+                />
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- 結算面板 -->
@@ -207,7 +262,10 @@
             單次製作總結算 (產出 {{selectedRecipe.yield}} 個)
           </h3>
           <!-- 模式一：賺錢結算 -->
-          <div v-if="calcMode === 'earn'" class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+          <div
+            v-if="calcMode === 'earn'"
+            class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center"
+          >
             <div>
               <div class="text-gray-500 text-sm font-semibold mb-1">
                 最佳材料總成本 (皆已含買家稅)
@@ -238,7 +296,10 @@
           </div>
 
           <!-- 模式二：省錢結算 -->
-          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center max-w-2xl mx-auto">
+          <div
+            v-else
+            class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center max-w-2xl mx-auto"
+          >
             <div>
               <div class="text-gray-500 text-sm font-semibold mb-1">
                 自製最佳總成本 (皆已含買家稅)
@@ -247,25 +308,33 @@
                 {{ formatGil(totalCost) }}
               </div>
             </div>
-             <div>
-               <div class="text-gray-500 text-sm font-semibold mb-1">
-                 買現成總花費 (成品市價 + 5% 買家稅)
-               </div>
-               <div class="text-2xl font-bold text-red-400">
-                 {{ formatGil(directBuyCost) }}
-               </div>
-             </div>
-             <div class="col-span-1 md:col-span-2 mt-2 p-4 rounded-lg bg-gray-800/50 border border-gray-700">
-               <div v-if="saveDiff > 0" class="text-2xl font-bold text-green-400">
-                 自己做比較省！省下 {{ formatGil(saveDiff) }}
-               </div>
-               <div v-else-if="saveDiff < 0" class="text-2xl font-bold text-red-500">
-                 直接買板子現成！自製會虧 {{ formatGil(Math.abs(saveDiff)) }}
-               </div>
-               <div v-else class="text-2xl font-bold text-gray-400">
-                 成本一樣 ({{ formatGil(0) }})
-               </div>
-             </div>
+            <div>
+              <div class="text-gray-500 text-sm font-semibold mb-1">
+                買現成總花費 (成品市價 + 5% 買家稅)
+              </div>
+              <div class="text-2xl font-bold text-red-400">
+                {{ formatGil(directBuyCost) }}
+              </div>
+            </div>
+            <div
+              class="col-span-1 md:col-span-2 mt-2 p-4 rounded-lg bg-gray-800/50 border border-gray-700"
+            >
+              <div
+                v-if="saveDiff > 0"
+                class="text-2xl font-bold text-green-400"
+              >
+                自己做比較省！省下 {{ formatGil(saveDiff) }}
+              </div>
+              <div
+                v-else-if="saveDiff < 0"
+                class="text-2xl font-bold text-red-500"
+              >
+                直接買板子現成！自製會虧 {{ formatGil(Math.abs(saveDiff)) }}
+              </div>
+              <div v-else class="text-2xl font-bold text-gray-400">
+                成本一樣 ({{ formatGil(0) }})
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -396,7 +465,11 @@
               >純粹底層素材，僅能購買或採集</span
             >
             <div class="flex items-center gap-2 self-end sm:self-auto">
-              <label class="text-gray-300 font-bold whitespace-nowrap">單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
+              <label class="text-gray-300 font-bold whitespace-nowrap"
+                >單價<span class="text-xs text-yellow-500/70 ml-1 font-normal"
+                  >(不含稅)</span
+                ></label
+              >
               <input
                 type="number"
                 v-model.number="prices[material.id]"
@@ -406,7 +479,11 @@
             </div>
           </div>
 
-          <div v-else class="grid gap-4" :class="depth === 0 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'">
+          <div
+            v-else
+            class="grid gap-4"
+            :class="depth === 0 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'"
+          >
             <!-- 選項 1: 直接購買 -->
             <div
               class="border rounded-lg p-4 relative"
@@ -423,8 +500,15 @@
               </div>
               <h3 class="text-gray-300 font-bold mb-4">選項 1：直接購買成品</h3>
 
-              <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
-                <label class="text-sm text-gray-400">市場單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
+              <div
+                class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2"
+              >
+                <label class="text-sm text-gray-400"
+                  >市場單價<span
+                    class="text-xs text-yellow-500/70 ml-1 font-normal"
+                    >(不含稅)</span
+                  ></label
+                >
                 <div class="flex items-center gap-2 self-end sm:self-auto">
                   <input
                     type="number"
@@ -440,9 +524,14 @@
               >
                 <div class="text-sm text-gray-400">
                   需要 {{ material.quantity }} 個
-                  <div class="text-xs text-yellow-500/70 mt-0.5 whitespace-nowrap">含買家稅 5%</div>
+                  <div
+                    class="text-xs text-yellow-500/70 mt-0.5 whitespace-nowrap"
+                  >
+                    含買家稅 5%
+                  </div>
                 </div>
-                <span class="text-lg font-bold text-white whitespace-nowrap ml-2"
+                <span
+                  class="text-lg font-bold text-white whitespace-nowrap ml-2"
                   >{{ formatGil(buyCost) }}</span
                 >
               </div>
@@ -490,7 +579,9 @@
                   </div>
                 </div>
                 <div class="text-right self-end sm:self-auto">
-                  <div class="text-xs text-gray-500 whitespace-nowrap">此方案總自製成本</div>
+                  <div class="text-xs text-gray-500 whitespace-nowrap">
+                    此方案總自製成本
+                  </div>
                   <span class="text-lg font-bold text-white whitespace-nowrap"
                     >{{ formatGil(craftCost) }}</span
                   >
@@ -499,6 +590,122 @@
             </div>
           </div>
         </div>
+      </div>
+    </template>
+
+    <!-- 樹狀圖節點 Template -->
+    <template id="tree-node-template">
+      <!-- 若是水晶且未開啟水晶計算，則整個不渲染 -->
+      <div v-if="!material.isCrystal || includeCrystals" class="relative px-2 flex flex-col items-center">
+        
+        <!-- 上方連線：連回父節點 (如果是根節點則隱藏) -->
+        <template v-if="!isRoot">
+          <!-- 向上垂直線 -->
+          <div class="absolute top-0 left-1/2 w-0.5 h-6 bg-green-500 -translate-x-1/2 z-0"></div>
+          <!-- 水平線 左半端 (除非是同層第一個) -->
+          <div v-if="index !== 0" class="absolute top-0 left-0 w-1/2 h-0.5 bg-green-500 z-0"></div>
+          <!-- 水平線 右半端 (除非是同層最後一個) -->
+          <div v-if="index !== total - 1" class="absolute top-0 right-0 w-1/2 h-0.5 bg-green-500 z-0"></div>
+        </template>
+
+        <!-- 節點卡片主體 -->
+        <div class="z-10 bg-gray-800 rounded-xl border p-3 w-48 xl:w-56 flex flex-col items-center shadow-lg transition-colors relative h-full"
+             :class="[
+               !isRoot ? 'mt-6' : '',
+               isMissingPrice ? 'border-yellow-500/80' : 'border-gray-700',
+               selectedMethodType === 'craft' && !isRoot ? 'ring-2 ring-green-500/30' : '',
+               isRoot ? 'border-purple-500 bg-gray-900 border-2 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : ''
+             ]">
+          
+          <!-- 數量徽章 -->
+          <div v-if="!isRoot" class="absolute -top-3 -right-3 bg-purple-600 border-2 border-gray-800 rounded-full h-7 w-7 flex items-center justify-center text-xs font-bold text-white shadow-md z-20">
+            {{ material.quantity }}
+          </div>
+
+          <!-- 品名 -->
+          <div class="font-bold text-center text-sm md:text-base text-gray-200" :class="isRoot ? 'text-purple-300 text-lg md:text-xl mb-1' : 'mb-2'">
+            {{ material.name }}
+          </div>
+          
+          <!-- Root info -->
+          <div v-if="isRoot" class="text-xs text-gray-400 mb-2 font-bold bg-black/30 px-3 py-1 rounded-full border border-gray-700">
+            單次產出: {{ material.yield }}
+          </div>
+
+          <!-- 價格輸入 / 顯示 -->
+          <div class="w-full relative mt-1">
+            <input type="number" 
+                   v-model.number="prices[material.id]" 
+                   class="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-center text-white font-bold focus:outline-none focus:border-purple-500 text-sm md:text-base transition-colors" 
+                   :placeholder="isRoot ? '成品市價' : '輸入單價'" 
+                   :class="isMissingPrice ? 'ring-1 ring-yellow-500/50 bg-gray-900/50' : ''" />
+          </div>
+
+          <!-- 比較資訊與自製省多少 -->
+          <div v-if="material.isCraftable && !isRoot" class="w-full mt-3 pt-2 border-t border-gray-700 text-[10px] xl:text-xs text-center flex-grow flex flex-col justify-end">
+            <div class="h-full flex flex-col justify-end">
+              <div v-if="buyCost !== null && craftCost !== null" class="text-gray-400 mb-1 leading-snug font-medium">
+                材料: {{ formatGil(craftCost) }}<br/>vs<br/>成品: {{ formatGil(buyCost) }}
+              </div>
+              <div v-if="selectedMethodType === 'craft'" class="text-green-400 font-bold flex flex-col items-center justify-center gap-0.5 mt-1 bg-green-900/20 py-1.5 rounded">
+                <span>✓ 建議自製</span>
+                <span>省 {{ formatGil(buyCost - craftCost) }}</span>
+              </div>
+              <div v-else-if="selectedMethodType === 'buy'" class="text-yellow-400 font-bold flex flex-col items-center justify-center gap-0.5 mt-1 bg-yellow-900/20 py-1.5 rounded">
+                <span>✓ 直購划算</span>
+                <span>省 {{ formatGil(craftCost - buyCost) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="!material.isCraftable && !isRoot" class="w-full mt-2 pt-2 border-t border-gray-700 text-[10px] xl:text-xs text-center text-gray-500 font-bold tracking-widest flex-grow flex flex-col justify-end">
+            底層素材
+          </div>
+          
+          <!-- Root Info -->
+          <div v-if="isRoot" class="w-full mt-3 pt-2 border-t border-gray-700 text-xs text-center">
+            <div class="text-gray-400 mb-1 font-bold">
+              以最優路線計算 (每項材料取買/製較低價)<br/>
+              <span class="text-blue-300">最優製作: {{ formatGil(rootCraftCost) }}</span><br/>vs<br/>直購成品: {{ formatGil(buyCost) }}
+            </div>
+            <div v-if="buyCost !== null && rootCraftCost !== null && buyCost > rootCraftCost" class="text-green-400 font-bold flex flex-col items-center justify-center gap-0.5 mt-2 bg-green-900/20 py-1.5 rounded border border-green-800/50">
+              <span class="text-sm">✓ 建議自製</span>
+              <span class="text-base">省下 {{ formatGil(buyCost - rootCraftCost) }}</span>
+            </div>
+            <div v-else-if="buyCost !== null && rootCraftCost !== null && buyCost < rootCraftCost" class="text-red-400 font-bold flex flex-col items-center justify-center gap-0.5 mt-2 bg-red-900/20 py-1.5 rounded border border-red-800/50">
+               <span class="text-sm">✓ 直接購買</span>
+               <span class="text-base">自製虧損 {{ formatGil(rootCraftCost - buyCost) }}</span>
+            </div>
+          </div>
+
+          <!-- 展開/收合 開關-->
+          <button v-if="material.isCraftable && validSubMaterials.length > 0" 
+                  @click="isExpanded = !isExpanded"
+                  class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gray-800 hover:bg-gray-700 border-2 border-green-600 rounded-full p-0.5 text-white shadow-[0_0_8px_rgba(34,197,94,0.4)] transition-all z-20 cursor-pointer"
+                  :title="isExpanded ? '收合子材料' : '展開子材料'">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform duration-300" 
+                 :class="isExpanded ? 'rotate-180 text-green-400' : 'text-gray-300'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 如果有子節點且展開，顯示向下垂直線 -->
+        <div v-if="material.isCraftable && isExpanded && validSubMaterials.length > 0" class="w-0.5 h-6 bg-green-500 z-0 relative"></div>
+
+        <!-- 子節點群組 -->
+        <div v-if="material.isCraftable && isExpanded && validSubMaterials.length > 0" class="flex flex-row justify-center relative">
+          <tree-node
+            v-for="(sub, i) in validSubMaterials"
+            :key="sub.id"
+            :material="sub"
+            :index="i"
+            :total="validSubMaterials.length"
+            :prices="prices"
+            :depth="depth + 1"
+          />
+        </div>
+
       </div>
     </template>
 
@@ -520,9 +727,12 @@
         }
 
         const currentPriceRaw = prices[mat.id];
-        const buyTotal = (currentPriceRaw === '' || currentPriceRaw === null || currentPriceRaw === undefined) 
-                         ? null 
-                         : Number(currentPriceRaw) * mat.quantity * 1.05; // 買家 5% 稅金
+        const buyTotal =
+          currentPriceRaw === "" ||
+          currentPriceRaw === null ||
+          currentPriceRaw === undefined
+            ? null
+            : Number(currentPriceRaw) * mat.quantity * 1.05; // 買家 5% 稅金
 
         if (!mat.isCraftable) {
           return buyTotal;
@@ -531,7 +741,12 @@
         let craftTotalCostForYield = 0;
         if (mat.subMaterials) {
           for (const sub of mat.subMaterials) {
-            const subCost = calculateNodeCost(sub, prices, methods, includeCrystals);
+            const subCost = calculateNodeCost(
+              sub,
+              prices,
+              methods,
+              includeCrystals,
+            );
             if (subCost === null) {
               craftTotalCostForYield = null;
               break;
@@ -540,9 +755,10 @@
           }
         }
 
-        const craftTotal = craftTotalCostForYield !== null 
-                           ? (craftTotalCostForYield / mat.yield) * mat.quantity 
-                           : null;
+        const craftTotal =
+          craftTotalCostForYield !== null
+            ? (craftTotalCostForYield / mat.yield) * mat.quantity
+            : null;
 
         if (buyTotal !== null && craftTotal !== null) {
           return Math.min(buyTotal, craftTotal);
@@ -571,16 +787,27 @@
           // 直購此節點的所需成本
           const buyCost = computed(() => {
             const currentPriceRaw = props.prices[props.material.id];
-            if (currentPriceRaw === '' || currentPriceRaw === null || currentPriceRaw === undefined) return null;
+            if (
+              currentPriceRaw === "" ||
+              currentPriceRaw === null ||
+              currentPriceRaw === undefined
+            )
+              return null;
             return Number(currentPriceRaw) * props.material.quantity * 1.05; // 買家 5% 稅金
           });
 
           // 原始由下層遞迴算上來的自製成本
           const craftCost = computed(() => {
-            if (!props.material.isCraftable || !props.material.subMaterials) return null;
+            if (!props.material.isCraftable || !props.material.subMaterials)
+              return null;
             let cost = 0;
             for (const sub of props.material.subMaterials) {
-              const subCost = calculateNodeCost(sub, props.prices, methods, includeCrystals.value);
+              const subCost = calculateNodeCost(
+                sub,
+                props.prices,
+                methods,
+                includeCrystals.value,
+              );
               if (subCost === null) return null;
               cost += subCost;
             }
@@ -590,7 +817,7 @@
           // 用於 UI 渲染：最終決定使用的方案
           const selectedMethodType = computed(() => {
             if (!props.material.isCraftable) return "buy";
-            
+
             if (buyCost.value !== null && craftCost.value !== null) {
               return craftCost.value < buyCost.value ? "craft" : "buy";
             } else if (buyCost.value !== null) {
@@ -605,7 +832,12 @@
           // 該節點即時動態小計成本
           const subtotal = computed(() => {
             if (props.material.isCrystal && !includeCrystals.value) return 0;
-            return calculateNodeCost(props.material, props.prices, methods, includeCrystals.value);
+            return calculateNodeCost(
+              props.material,
+              props.prices,
+              methods,
+              includeCrystals.value,
+            );
           });
 
           const formatGil = (val) => {
@@ -631,9 +863,115 @@
         },
       };
 
+      // Vue Component: 樹狀材料節點
+      const TreeNode = {
+        name: "tree-node",
+        template: "#tree-node-template",
+        props: {
+          material: Object,
+          prices: Object,
+          depth: Number,
+          index: Number,
+          total: Number,
+          isRoot: { type: Boolean, default: false }
+        },
+        setup(props) {
+          const methods = inject("methods");
+          const includeCrystals = inject("includeCrystals");
+
+          // 預設層級展示：如果是Root預設展開子材料，如果depth==0 (第一層) 也隱藏 (展開按鈕)，保持最乾淨
+          const isExpanded = ref(props.depth === 0 && props.isRoot);
+
+          // 計算過濾掉水晶(如果開關關閉)的子材料
+          const validSubMaterials = computed(() => {
+            if (!props.material.subMaterials) return [];
+            if (!includeCrystals.value) return props.material.subMaterials.filter(m => !m.isCrystal);
+            return props.material.subMaterials;
+          });
+
+          // 直購此節點的所需成本
+          const buyCost = computed(() => {
+            const currentPriceRaw = props.prices[props.material.id];
+            if (
+              currentPriceRaw === "" ||
+              currentPriceRaw === null ||
+              currentPriceRaw === undefined
+            )
+              return null;
+            return Number(currentPriceRaw) * props.material.quantity * 1.05; // 買家 5% 稅金
+          });
+
+          // 原始由下層遞迴算上來的自製成本
+          const craftCost = computed(() => {
+            if (!props.material.isCraftable || !props.material.subMaterials)
+              return null;
+            let cost = 0;
+            for (const sub of props.material.subMaterials) {
+              const subCost = calculateNodeCost(
+                sub,
+                props.prices,
+                methods,
+                includeCrystals.value,
+              );
+              if (subCost === null) return null;
+              cost += subCost;
+            }
+            return (cost / props.material.yield) * props.material.quantity;
+          });
+
+          // 專門為 Root 計算的總成本 (Root 沒有自己的 quantity 倍率，直接取所有 material 加總)
+          const rootCraftCost = computed(() => {
+            if (!props.isRoot) return null;
+            let total = 0;
+            for (const mat of props.material.subMaterials) {
+              const subCost = calculateNodeCost(mat, props.prices, methods, includeCrystals.value);
+              if (subCost === null) return null;
+              total += subCost;
+            }
+            return total;
+          });
+
+          // 用於 UI 渲染：最終決定使用的方案
+          const selectedMethodType = computed(() => {
+            if (!props.material.isCraftable) return "buy";
+            if (buyCost.value !== null && craftCost.value !== null) {
+              return craftCost.value < buyCost.value ? "craft" : "buy";
+            } else if (buyCost.value !== null) {
+              return "buy";
+            } else if (craftCost.value !== null) {
+              return "craft";
+            } else {
+              return "none";
+            }
+          });
+
+          const isMissingPrice = computed(() => {
+            const p = props.prices[props.material.id];
+            return p === "" || p === null || p === undefined;
+          });
+
+          const formatGil = (val) => {
+            if (val === null || val === undefined) return "---";
+            return Math.ceil(val).toLocaleString() + " G";
+          };
+
+          return {
+            includeCrystals,
+            isExpanded,
+            validSubMaterials,
+            buyCost,
+            craftCost,
+            rootCraftCost,
+            selectedMethodType,
+            isMissingPrice,
+            formatGil,
+          };
+        },
+      };
+
       // Vue Root Instance
       createApp({
-        components: { MaterialNode },
+        components: { MaterialNode, TreeNode },
         setup() {
           const searchQuery = ref("");
           const searchResults = ref([]);
@@ -645,6 +983,7 @@
 
           const calcMode = ref("earn");
           const sellTaxRate = ref(0.05);
+          const viewMode = ref("list"); // 'list' or 'tree'
 
           // API Data States
           const isReady = ref(false);
@@ -786,7 +1125,12 @@
             if (!selectedRecipe.value) return 0;
             let total = 0;
             for (const mat of selectedRecipe.value.materials) {
-              const subCost = calculateNodeCost(mat, prices, methods, includeCrystals.value);
+              const subCost = calculateNodeCost(
+                mat,
+                prices,
+                methods,
+                includeCrystals.value,
+              );
               if (subCost === null) return null;
               total += subCost;
             }
@@ -796,16 +1140,25 @@
           const salePrice = computed(() => {
             if (!selectedRecipe.value) return null;
             const p = prices[selectedRecipe.value.resultId];
-            return (p === '' || p === null || p === undefined) ? null : Number(p);
+            return p === "" || p === null || p === undefined ? null : Number(p);
           });
 
           const taxAmount = computed(() => {
             if (salePrice.value === null) return null;
-            return salePrice.value * (selectedRecipe.value?.yield || 1) * sellTaxRate.value;
+            return (
+              salePrice.value *
+              (selectedRecipe.value?.yield || 1) *
+              sellTaxRate.value
+            );
           });
 
           const profit = computed(() => {
-            if (!selectedRecipe.value || totalCost.value === null || salePrice.value === null) return null;
+            if (
+              !selectedRecipe.value ||
+              totalCost.value === null ||
+              salePrice.value === null
+            )
+              return null;
             const totalRevenue = salePrice.value * selectedRecipe.value.yield;
             return totalRevenue - taxAmount.value - totalCost.value;
           });
@@ -816,7 +1169,8 @@
           });
 
           const saveDiff = computed(() => {
-            if (directBuyCost.value === null || totalCost.value === null) return null;
+            if (directBuyCost.value === null || totalCost.value === null)
+              return null;
             return directBuyCost.value - totalCost.value;
           });
 
@@ -832,6 +1186,7 @@
           };
 
           return {
+            viewMode,
             calcMode,
             sellTaxRate,
             includeCrystals,
