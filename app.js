@@ -438,6 +438,11 @@ createApp({
       return total;
     });
 
+    const untaxedTotalCost = computed(() => {
+      if (totalCost.value === null) return null;
+      return totalCost.value / 1.05;
+    });
+
     const salePrice = computed(() => {
       if (!selectedRecipe.value) return null;
       const p = prices[selectedRecipe.value.resultId];
@@ -486,6 +491,7 @@ createApp({
       taxAmount,
       directBuyCost,
       saveDiff,
+      untaxedTotalCost,
       formatGil,
       copyName,
       isLoading,
