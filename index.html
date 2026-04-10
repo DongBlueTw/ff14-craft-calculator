@@ -175,10 +175,22 @@
 
       <!-- Main Content Layout -->
       <main
-        class="flex-1 mt-16 md:pt-8 px-4 md:px-8 flex gap-8 w-full max-w-[1600px] mx-auto relative z-10"
+        class="flex-1 mt-16 md:pt-8 px-4 md:px-8 flex flex-col md:flex-row gap-8 w-full max-w-[1600px] mx-auto relative z-10"
       >
         <!-- Left Sidebar: Saved Recipes -->
-        <aside class="hidden md:flex w-64 flex-col gap-8 shrink-0">
+        <aside :class="isMobileSidebarOpen ? 'fixed inset-0 z-[100] bg-[#05080f] p-6 overflow-y-auto w-full flex flex-col gap-8' : 'hidden md:flex w-64 flex-col gap-8 shrink-0'">
+          
+          <!-- Mobile Specific Header -->
+          <div v-if="isMobileSidebarOpen" class="md:hidden flex justify-between items-center pb-2 border-b border-outline/10 shrink-0">
+            <h2 class="font-headline text-lg text-primary flex items-center gap-2">
+              <span class="material-symbols-outlined">menu_book</span>
+              配方與紀錄
+            </h2>
+            <button @click="isMobileSidebarOpen = false" class="p-2 bg-surface-container hover:bg-surface-container-high transition-colors rounded-lg text-secondary">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
           <section>
             <div class="flex items-center justify-between mb-4">
               <h3
@@ -689,21 +701,33 @@
         class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center h-[72px] px-2 bg-[#10131b]/95 backdrop-blur-md z-50 border-t border-outline/10 safe-area-pb"
       >
         <button
-          class="flex flex-col items-center justify-center text-amber-500 font-bold bg-amber-500/10 rounded-xl px-5 py-2 w-1/3"
+          @click="isMobileSidebarOpen = false"
+          class="flex flex-col items-center justify-center font-bold w-1/3 py-2 transition-colors"
+          :class="!isMobileSidebarOpen ? 'text-amber-500 bg-amber-500/10 rounded-xl px-5' : 'text-slate-500 hover:text-amber-300'"
         >
           <span class="material-symbols-outlined text-xl">architecture</span>
           <span class="font-label text-[10px] uppercase tracking-wider mt-1"
             >計算機</span
           >
         </button>
+        <button
+          @click="isMobileSidebarOpen = true"
+          class="flex flex-col items-center justify-center font-bold w-1/3 py-2 transition-colors"
+          :class="isMobileSidebarOpen ? 'text-amber-500 bg-amber-500/10 rounded-xl px-5' : 'text-slate-500 hover:text-amber-300'"
+        >
+          <span class="material-symbols-outlined text-xl">menu_book</span>
+          <span class="font-label text-[10px] uppercase tracking-wider mt-1"
+            >存檔紀錄</span
+          >
+        </button>
         <a
           href="#"
-          @click.prevent="window.scrollTo({top: 0, behavior: 'smooth'})"
+          onclick="window.scrollTo({top: 0, behavior: 'smooth'}); return false;"
           class="flex flex-col items-center justify-center text-slate-500 hover:text-amber-300 w-1/3 py-2"
         >
           <span class="material-symbols-outlined text-xl">arrow_upward</span>
           <span class="font-label text-[10px] uppercase tracking-wider mt-1"
-            >置頂</span
+            >回到頂部</span
           >
         </a>
       </nav>

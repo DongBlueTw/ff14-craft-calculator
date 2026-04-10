@@ -248,6 +248,9 @@ createApp({
     const LS_HISTORY_KEY = "ff14_history_recipes";
     const historyRecipes = ref([]);
 
+    // 手機板選單切換狀態
+    const isMobileSidebarOpen = ref(false);
+
     const isLoading = ref(true);
     const loadingMsg = ref("正在連線取得配方與中文翻譯庫 (~15MB)...");
 
@@ -363,6 +366,7 @@ createApp({
       if (!(selectedRecipe.value.resultId in prices)) {
         prices[selectedRecipe.value.resultId] = "";
       }
+      isMobileSidebarOpen.value = false;
 
       // ── 新增至歷史紀錄 ──────────────────────────────────────────────────
       const newHist = {
@@ -486,6 +490,7 @@ createApp({
       copyName,
       isLoading,
       loadingMsg,
+      isMobileSidebarOpen,
       // 儲存配方
       savedRecipes,
       saveCurrentRecipe,
