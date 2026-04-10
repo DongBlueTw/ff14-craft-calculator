@@ -1,577 +1,1110 @@
 <!doctype html>
-<html lang="zh-TW">
+<html lang="zh-TW" class="dark">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FF14 製作成本與利潤計算機</title>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>FF14 Crafting Calculator</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&family=Work+Sans:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="style.css" />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary-container": "#abb9d1",
+              "on-primary": "#472a00",
+              "primary-fixed-dim": "#ffb95f",
+              "on-surface": "#e0e2ed",
+              "primary-container": "#FBBF24",
+              "on-tertiary": "#00344a",
+              "tertiary-container": "#1abdff",
+              secondary: "#b9c7df",
+              "inverse-surface": "#e0e2ed",
+              "on-error-container": "#ffdad6",
+              outline: "#a08e7a",
+              "secondary-fixed": "#d5e3fc",
+              "inverse-on-surface": "#2d3039",
+              "surface-container-highest": "#31353d",
+              "on-tertiary-container": "#004966",
+              "secondary-fixed-dim": "#b9c7df",
+              "surface-variant": "#31353d",
+              "inverse-primary": "#855300",
+              "on-surface-variant": "#d8c3ad",
+              "on-primary-container": "#472a00",
+              "surface-container": "#1c2027",
+              "on-tertiary-fixed": "#001e2d",
+              "tertiary-fixed": "#c5e7ff",
+              surface: "#10131b",
+              "surface-container-high": "#262a32",
+              tertiary: "#8fd5ff",
+              "primary-fixed": "#ffddb8",
+              "surface-tint": "#FBBF24",
+              "outline-variant": "#534434",
+              "surface-dim": "#10131b",
+              background: "#0a0e16",
+              error: "#ffb4ab",
+              "on-primary-fixed-variant": "#653e00",
+              "on-tertiary-fixed-variant": "#004c6a",
+              "error-container": "#93000a",
+              "on-secondary": "#233144",
+              "surface-container-lowest": "#05080f",
+              "on-background": "#e0e2ed",
+              "on-error": "#690005",
+              "on-primary-fixed": "#2a1700",
+              primary: "#FBBF24",
+              "secondary-container": "#3c4a5e",
+              "surface-container-low": "#181c23",
+              "tertiary-fixed-dim": "#7fd0ff",
+              "on-secondary-fixed-variant": "#3a485b",
+              "surface-bright": "#363942",
+              "on-secondary-fixed": "#0d1c2e",
+            },
+            fontFamily: {
+              headline: ["Noto Serif", "serif"],
+              body: ["Work Sans", "sans-serif"],
+              label: ["Work Sans", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
   </head>
-  <body class="p-4 md:p-8">
-    <!-- ────────────────────────────────────────────────────────────
-         主應用程式掛載點
-    ──────────────────────────────────────────────────────────── -->
+  <body
+    class="min-h-screen flex flex-col bg-[#05080f] text-[#e0e2ed] font-body relative pb-20 md:pb-0"
+  >
     <div
       id="app"
-      class="mx-auto space-y-6 transition-all duration-500 will-change-transform"
-      :class="[
-        isLoading ? 'opacity-0' : 'opacity-100',
-        viewMode === 'tree' ? 'max-w-[95vw] 2xl:max-w-[90vw]' : 'max-w-5xl'
-      ]"
+      class="flex-1 flex flex-col transition-opacity duration-500"
+      :class="[isLoading ? 'opacity-0' : 'opacity-100']"
     >
-      <!-- Loading 畫面 -->
+      <!-- Loading Overlay -->
       <div
         v-if="isLoading"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/90 backdrop-blur-sm"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-[#05080f]/90 backdrop-blur-sm"
       >
         <div class="text-center">
-          <div class="inline-block w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <h2 class="text-2xl font-bold text-white mb-2">準備資料中...</h2>
-          <p class="text-gray-400">{{ loadingMsg }}</p>
-        </div>
-      </div>
-
-      <!-- 頂部標題與搜尋 -->
-      <div class="bg-card p-6 rounded-xl shadow-xl border border-gray-700">
-        <h1 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-          FF14 製作成本與利潤計算機
-        </h1>
-
-        <div class="relative z-40">
-          <input
-            type="text"
-            v-model="searchQuery"
-            @input="doSearch"
-            @keyup.enter="confirmSearch"
-            :disabled="isLoading"
-            placeholder="輸入配方名稱搜尋 (例如: 巧力幻藥, 薩維奈)"
-            class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-bold disabled:opacity-50"
-          />
           <div
-            v-if="searchResults.length > 0"
-            class="absolute w-full mt-2 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl max-h-60 overflow-y-auto"
-          >
-            <button
-              v-for="res in searchResults"
-              :key="res.rawRecipe.id"
-              @click="selectRecipe(res)"
-              class="w-full text-left px-4 py-3 hover:bg-gray-700 focus:bg-gray-700 transition-colors border-b border-gray-700 last:border-0"
-            >
-              <span class="font-bold text-blue-300">{{ res.name }}</span>
-              <span class="text-gray-400 ml-2 text-sm">(單次產出: {{ res.yield }})</span>
-            </button>
-          </div>
+            class="inline-block w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"
+          ></div>
+          <h2 class="text-2xl font-bold text-on-surface mb-2">準備資料中...</h2>
+          <p class="text-secondary">{{ loadingMsg }}</p>
         </div>
       </div>
 
-      <!-- 已儲存配方 -->
-      <div class="bg-card p-5 rounded-xl shadow-xl border border-gray-700">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-base font-bold text-gray-300 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M5 3a2 2 0 00-2 2v16l7-3 7 3V5a2 2 0 00-2-2H5z" />
-            </svg>
-            已儲存配方
-          </h2>
-          <span class="text-xs text-gray-500">最多儲存 {{ MAX_SAVED }} 個</span>
-        </div>
-
-        <!-- 空狀態 -->
-        <p v-if="savedRecipes.length === 0" class="text-gray-600 text-sm text-center py-3">
-          尚無儲存的配方，選擇配方後點擊「儲存配方」即可加入。
-        </p>
-
-        <!-- 配方卡片列表 -->
-        <div v-else class="flex flex-wrap gap-2">
-          <div
-            v-for="saved in savedRecipes"
-            :key="saved.resultId"
-            class="flex items-center gap-1.5 bg-gray-800 border rounded-lg px-3 py-1.5 transition-all"
-            :class="selectedRecipe?.resultId === saved.resultId ? 'border-purple-500 bg-purple-900/20' : 'border-gray-700 hover:border-gray-500'"
-          >
-            <button
-              @click="loadSavedRecipe(saved)"
-              class="text-sm font-bold text-left"
-              :class="selectedRecipe?.resultId === saved.resultId ? 'text-purple-300' : 'text-gray-200 hover:text-white'"
-            >
-              {{ saved.name }}
-              <span class="text-xs font-normal text-gray-500 ml-1">×{{ saved.yield }}</span>
-            </button>
-            <button
-              @click="removeSavedRecipe(saved.resultId)"
-              class="text-gray-600 hover:text-red-400 transition-colors ml-1 flex-shrink-0"
-              title="移除"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
+      <!-- Background Decoration / Glass Layer -->
+      <div class="fixed inset-0 pointer-events-none z-0 opacity-20">
+        <div
+          class="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 blur-[100px] rounded-full"
+        ></div>
+        <div
+          class="absolute bottom-0 left-0 w-96 h-96 bg-slate-500/10 blur-[100px] rounded-full"
+        ></div>
       </div>
 
-      <!-- 配方材料細節 -->
-      <div v-if="selectedRecipe" class="bg-card p-6 rounded-xl shadow-xl border border-gray-700">
-        <!-- 頂部：品名、模式、稅率、成品單價 -->
-        <div class="flex flex-col md:flex-row justify-between md:items-end mb-6 pb-4 border-b border-gray-700 gap-4">
-          <!-- 品名 -->
-          <div>
-            <h2 class="text-2xl font-bold text-white flex items-center gap-2">
-              {{ selectedRecipe.name }}
-              <button @click="copyName(selectedRecipe.name)" class="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-gray-700" title="複製名稱">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
-              <!-- 儲存配方按鈕 -->
-              <button
-                @click="saveCurrentRecipe"
-                :disabled="savedRecipes.length >= MAX_SAVED && !isCurrentSaved"
-                class="flex items-center gap-1 text-sm font-bold px-2.5 py-1 rounded-lg transition-all border"
-                :class="isCurrentSaved
-                  ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400 hover:bg-yellow-500/30'
-                  : savedRecipes.length >= MAX_SAVED
-                    ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed'
-                    : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-400'"
-                :title="isCurrentSaved ? '已儲存（點擊更新至最上方）' : savedRecipes.length >= MAX_SAVED ? '已達上限（5個）' : '儲存此配方'"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :fill="isCurrentSaved ? 'currentColor' : 'none'" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3a2 2 0 00-2 2v16l7-3 7 3V5a2 2 0 00-2-2H5z" />
-                </svg>
-                {{ isCurrentSaved ? '已儲存' : '儲存配方' }}
-              </button>
-            </h2>
-            <p class="text-gray-400 mt-1">單次成品產出數量：<span class="text-yellow-400 font-bold ml-1">{{ selectedRecipe.yield }}</span></p>
-          </div>
-
-          <!-- 控制區 -->
-          <div class="flex flex-col items-end gap-3">
-            <!-- 視圖切換 -->
-            <div class="flex bg-gray-900 rounded-lg p-1 border border-gray-700 w-full sm:w-auto shadow-inner">
-              <button
-                @click="viewMode = 'list'"
-                class="px-4 py-1.5 rounded-md text-sm font-bold transition-all w-1/2 sm:w-auto"
-                :class="viewMode === 'list' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-white'"
-              >列表模式</button>
-              <button
-                @click="viewMode = 'tree'"
-                class="px-4 py-1.5 rounded-md text-sm font-bold transition-all w-1/2 sm:w-auto"
-                :class="viewMode === 'tree' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-white'"
-              >樹狀模式 (Tree)</button>
-            </div>
-
-            <!-- 計算模式 & 稅率 -->
-            <div class="flex flex-wrap items-center justify-end gap-3">
-              <select v-model="calcMode" class="bg-gray-900 border border-gray-600 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-blue-500 font-bold">
-                <option value="earn">【模式一：賺錢 (賣出)】</option>
-                <option value="save">【模式二：省錢 (自用)】</option>
-              </select>
-              <select
-                v-if="calcMode === 'earn'"
-                v-model.number="sellTaxRate"
-                class="bg-gray-900 border border-gray-600 rounded-lg px-3 py-1.5 text-yellow-400 focus:outline-none focus:border-yellow-500 font-bold"
-              >
-                <option :value="0">賣出稅率: 0%</option>
-                <option :value="0.01">賣出稅率: 1%</option>
-                <option :value="0.02">賣出稅率: 2%</option>
-                <option :value="0.03">賣出稅率: 3%</option>
-                <option :value="0.04">賣出稅率: 4%</option>
-                <option :value="0.05">賣出稅率: 5%</option>
-              </select>
-            </div>
-
-            <!-- 成品單價 -->
-            <div class="flex items-center gap-3">
-              <label class="font-bold text-gray-300 whitespace-nowrap">
-                成品單價 (市價)
-                <span v-if="calcMode === 'save'" class="text-xs text-yellow-500/70 ml-1">(不含稅)</span>
-              </label>
-              <div class="relative">
-                <input
-                  type="number"
-                  v-model.number="prices[selectedRecipe.resultId]"
-                  placeholder="輸入價格"
-                  class="bg-gray-900 border border-gray-600 rounded-lg pl-3 pr-8 py-2 w-32 md:w-40 text-right focus:outline-none focus:border-blue-500 text-white font-bold text-xl"
-                />
-                <span class="absolute right-3 top-2.5 text-gray-400 font-bold">G</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 計算水晶 Toggle -->
-        <div class="flex items-center gap-2 mb-4 bg-gray-800 p-3 rounded-lg border border-gray-700 w-fit">
-          <input
-            type="checkbox"
-            id="toggle-crystals"
-            v-model="includeCrystals"
-            class="w-5 h-5 text-purple-600 bg-gray-900 border-gray-600 rounded focus:ring-purple-500 cursor-pointer"
-          />
-          <label for="toggle-crystals" class="text-gray-300 font-bold cursor-pointer select-none">計算水晶成本</label>
-        </div>
-
-        <!-- 材料列表 / 樹狀圖 -->
-        <div class="space-y-3">
-          <template v-if="viewMode === 'list'">
-            <material-node
-              v-for="mat in selectedRecipe.materials"
-              :key="mat.id"
-              :material="mat"
-              :prices="prices"
-              :depth="0"
-            />
-          </template>
-
-          <template v-else-if="viewMode === 'tree'">
-            <div class="overflow-x-auto w-full pb-12 pt-10 custom-scrollbar bg-[#161d2d] rounded-xl border border-gray-700 shadow-inner">
-              <div class="min-w-max flex flex-col items-center px-12 md:px-24 pb-4">
-                <tree-node
-                  :isRoot="true"
-                  :material="{
-                    id: selectedRecipe.resultId,
-                    name: selectedRecipe.name,
-                    quantity: selectedRecipe.yield,
-                    yield: selectedRecipe.yield,
-                    isCraftable: true,
-                    isCrystal: false,
-                    subMaterials: selectedRecipe.materials
-                  }"
-                  :prices="prices"
-                  :depth="0"
-                  :index="0"
-                  :total="1"
-                />
-              </div>
-            </div>
-          </template>
-        </div>
-
-        <!-- 結算面板 -->
-        <div class="mt-8 bg-gray-900 rounded-xl p-6 border border-gray-700 shadow-inner">
-          <h3 class="text-lg font-bold text-gray-400 mb-4 border-b border-gray-800 pb-2">
-            單次製作總結算 (產出 {{ selectedRecipe.yield }} 個)
-          </h3>
-
-          <!-- 模式一：賺錢 -->
-          <div v-if="calcMode === 'earn'" class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-            <div>
-              <div class="text-gray-500 text-sm font-semibold mb-1">最佳材料總成本 (皆已含買家稅)</div>
-              <div class="text-2xl font-bold text-red-400">{{ formatGil(totalCost) }}</div>
-            </div>
-            <div>
-              <div class="text-gray-500 text-sm font-semibold mb-1">賣出預估稅金 ({{ (sellTaxRate * 100).toFixed(0) }}%)</div>
-              <div class="text-2xl font-bold text-yellow-500">{{ formatGil(taxAmount) }}</div>
-            </div>
-            <div>
-              <div class="text-gray-500 text-sm font-semibold mb-1">預估純利潤</div>
-              <div class="text-3xl font-bold" :class="profit >= 0 ? 'text-green-400' : 'text-red-500'">
-                {{ formatGil(profit) }}
-              </div>
-            </div>
-          </div>
-
-          <!-- 模式二：省錢 -->
-          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center max-w-2xl mx-auto">
-            <div>
-              <div class="text-gray-500 text-sm font-semibold mb-1">自製最佳總成本 (皆已含買家稅)</div>
-              <div class="text-2xl font-bold text-blue-400">{{ formatGil(totalCost) }}</div>
-            </div>
-            <div>
-              <div class="text-gray-500 text-sm font-semibold mb-1">買現成總花費 (成品市價 + 5% 買家稅)</div>
-              <div class="text-2xl font-bold text-red-400">{{ formatGil(directBuyCost) }}</div>
-            </div>
-            <div class="col-span-1 md:col-span-2 mt-2 p-4 rounded-lg bg-gray-800/50 border border-gray-700">
-              <div v-if="saveDiff > 0" class="text-2xl font-bold text-green-400">自己做比較省！省下 {{ formatGil(saveDiff) }}</div>
-              <div v-else-if="saveDiff < 0" class="text-2xl font-bold text-red-500">直接買板子現成！自製會虧 {{ formatGil(Math.abs(saveDiff)) }}</div>
-              <div v-else class="text-2xl font-bold text-gray-400">成本一樣 ({{ formatGil(0) }})</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 空狀態 -->
-      <div v-else class="text-center py-16 text-gray-500 font-bold">
-        請從上方搜尋並選擇一個配方開始計算
-      </div>
-
-      <!-- 免責聲明 -->
-      <div class="mt-12 p-6 bg-gray-900/50 rounded-xl border border-gray-800 text-sm text-gray-400 space-y-4">
-        <h4 class="font-bold text-gray-300 border-b border-gray-800 pb-2">【免責聲明與版權宣告】</h4>
-        <ul class="space-y-3 list-none">
-          <li><span class="text-gray-300 font-bold">非官方工具：</span>本網站為玩家自製的第三方 FF14 輔助計算工具，與 Square Enix 官方無任何附屬、贊助或合作關係。</li>
-          <li><span class="text-gray-300 font-bold">數據僅供參考：</span>遊戲內市場板（Market Board）價格隨時會發生劇烈波動。本站提供的成本與利潤計算結果僅供參考，不保證數據的絕對準確性與即時性。</li>
-          <li><span class="text-gray-300 font-bold">風險自負：</span>使用者根據本網站計算結果所進行的任何遊戲內採購、製作與販售決策，其產生之虛擬金幣（Gil）盈虧請自行承擔，本站開發者恕不負擔任何賠償或連帶責任。</li>
-          <li>
-            <span class="text-gray-300 font-bold">版權聲明：</span>本站提及之遊戲名稱、物品名詞及相關遊戲內設定，其版權與註冊商標均歸屬於 Square Enix 所有。<br />
-            <span class="text-xs italic opacity-75">FINAL FANTASY is a registered trademark of Square Enix Holdings Co., Ltd.</span>
-          </li>
-        </ul>
-      </div>
-
-      <!-- 授權標示 -->
-      <footer class="text-center text-gray-500 text-xs mt-8 pb-8">
-        Data provided by
-        <a href="https://github.com/ffxiv-teamcraft/ffxiv-teamcraft" target="_blank" class="text-purple-400 hover:underline">FFXIV Teamcraft</a>
-        under the
-        <a href="https://github.com/ffxiv-teamcraft/ffxiv-teamcraft/blob/master/LICENSE" target="_blank" class="text-purple-400 hover:underline">MIT License</a>.
-      </footer>
-    </div>
-
-    <!-- ────────────────────────────────────────────────────────────
-         Vue Component Templates
-         (Vue 3 使用 inline template id，必須放在 DOM 中)
-    ──────────────────────────────────────────────────────────── -->
-
-    <!-- Template: 列表模式材料節點（遞迴） -->
-    <template id="material-node-template">
-      <div
-        v-if="!material.isCrystal || includeCrystals"
-        class="rounded-lg border border-gray-700 transition-all overflow-hidden relative mb-4"
-        :class="depth === 0 ? 'bg-gray-800' : 'bg-subcard'"
+      <!-- Mobile Top Nav -->
+      <header
+        class="md:hidden fixed top-0 w-full z-50 bg-[#10131b]/60 backdrop-blur-xl shadow-[0_20px_40px_rgba(0,0,0,0.4)] flex items-center justify-between px-6 h-16"
       >
-        <!-- 標題帶 -->
-        <div class="bg-black/20 p-3 border-b border-gray-700 flex justify-between items-center">
-          <div class="flex items-center gap-2">
-            <span class="font-bold text-lg" :class="material.isCraftable ? 'text-purple-300' : 'text-green-300'">
-              {{ material.name }}
-            </span>
-            <button @click="copyName(material.name)" class="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-gray-700" title="複製名稱">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </button>
-            <span class="bg-gray-700 text-gray-300 text-sm px-2 py-0.5 rounded-full font-bold">x {{ material.quantity }}</span>
-            <span v-if="material.isCraftable" class="text-xs text-gray-400 ml-2">(產單次出: {{ material.yield }})</span>
-          </div>
-          <div class="text-right">
-            <span class="text-xs text-gray-400 mr-2 uppercase tracking-wide">目前小計</span>
-            <span class="font-bold text-xl text-blue-400">{{ formatGil(subtotal) }}</span>
-          </div>
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-amber-500"
+            >precision_manufacturing</span
+          >
+          <h1
+            class="font-headline font-bold text-lg tracking-tight text-amber-500 italic truncate"
+          >
+            工匠計算器
+          </h1>
         </div>
+      </header>
 
-        <div class="p-4">
-          <!-- 底層素材（不可製作） -->
-          <div v-if="!material.isCraftable" class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <span class="text-gray-400 text-sm">純粹底層素材，僅能購買或採集</span>
-            <div class="flex items-center gap-2 self-end sm:self-auto">
-              <label class="text-gray-300 font-bold whitespace-nowrap">單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
-              <input type="number" v-model.number="prices[material.id]" placeholder="輸入單價" class="bg-gray-900 border border-gray-600 rounded px-3 py-1.5 w-24 md:w-32 text-right focus:outline-none focus:border-blue-500 text-white font-bold" />
+      <!-- Desktop Top Nav -->
+      <nav
+        class="hidden md:flex fixed top-0 w-full z-50 bg-[#10131b]/60 backdrop-blur-xl justify-between items-center px-8 h-16 shadow-lg shadow-[#0a0e16]/40"
+      >
+        <div class="flex items-center gap-8">
+          <span
+            class="text-xl font-bold tracking-tight text-[#FBBF24] font-headline underline not-italic"
+            >FF14 工匠計算器</span
+          >
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="relative z-50 w-64">
+            <input
+              type="text"
+              v-model="searchQuery"
+              @input="doSearch"
+              @keyup.enter="confirmSearch"
+              :disabled="isLoading"
+              placeholder="搜尋配方名稱..."
+              class="w-full bg-surface-container border border-outline/30 rounded-lg px-4 py-1.5 text-sm font-bold text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all disabled:opacity-50"
+            />
+            <div
+              v-if="searchResults.length > 0"
+              class="absolute w-full mt-1 bg-surface-container-high border border-outline/30 rounded-lg shadow-2xl max-h-60 overflow-y-auto"
+            >
+              <button
+                v-for="res in searchResults"
+                :key="res.rawRecipe.id"
+                @click="selectRecipe(res)"
+                class="w-full text-left px-3 py-2 hover:bg-surface-container-highest transition-colors border-b border-outline/10 last:border-0 truncate"
+              >
+                <span class="font-bold text-primary">{{ res.name }}</span>
+              </button>
             </div>
           </div>
+          <button
+            @click="confirmSearch"
+            class="w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high overflow-hidden border border-outline-variant/20 flex items-center justify-center shrink-0 transition-colors"
+          >
+            <span class="material-symbols-outlined text-secondary text-sm"
+              >search</span
+            >
+          </button>
+        </div>
+      </nav>
 
-          <!-- 可製作素材：直購 vs 自製 -->
-          <div v-else class="grid gap-4" :class="depth === 0 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'">
-            <!-- 選項 1：直接購買 -->
-            <div class="border rounded-lg p-4 relative" :class="selectedMethodType === 'buy' ? 'border-green-500 bg-green-900/10' : 'border-gray-700 bg-gray-800/50 opacity-80'">
-              <div class="absolute top-0 right-0 p-2" v-if="selectedMethodType === 'buy'">
-                <span class="text-green-500 font-bold bg-green-900/40 px-2 py-1 text-xs rounded">✓ 直購較划算</span>
+      <!-- Main Content Layout -->
+      <main
+        class="flex-1 mt-16 md:pt-8 px-4 md:px-8 flex gap-8 w-full max-w-[1600px] mx-auto relative z-10"
+      >
+        <!-- Left Sidebar: Saved Recipes -->
+        <aside class="hidden md:flex w-64 flex-col gap-8 shrink-0">
+          <section>
+            <div class="flex items-center justify-between mb-4">
+              <h3
+                class="font-label text-xs uppercase tracking-widest text-outline flex items-center gap-2"
+              >
+                <span class="material-symbols-outlined text-sm">bookmark</span>
+                已儲存配方
+              </h3>
+              <span class="text-[10px] text-secondary"
+                >{{ savedRecipes.length }} / {{ MAX_SAVED }}</span
+              >
+            </div>
+            <div class="space-y-2">
+
+              <div
+                v-for="saved in savedRecipes"
+                :key="saved.resultId"
+                class="p-3 bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer rounded-lg border-l-2 flex justify-between items-center group"
+                :class="selectedRecipe?.resultId === saved.resultId ? 'border-primary bg-surface-container' : 'border-transparent hover:border-primary'"
+              >
+                <div
+                  @click="loadSavedRecipe(saved)"
+                  class="flex-1 min-w-0 pr-2"
+                >
+                  <p
+                    class="text-sm truncate"
+                    :class="selectedRecipe?.resultId === saved.resultId ? 'text-primary font-bold' : 'text-secondary font-medium group-hover:text-primary'"
+                  >
+                    {{ saved.name }}
+                  </p>
+                  <p class="text-[10px] text-secondary mt-1">
+                    產出: {{ saved.yield }}
+                  </p>
+                </div>
+                <button
+                  @click.stop="removeSavedRecipe(saved.resultId)"
+                  class="text-secondary hover:text-error transition-colors shrink-0 opacity-0 group-hover:opacity-100 p-1"
+                >
+                  <span class="material-symbols-outlined text-sm">close</span>
+                </button>
               </div>
-              <h3 class="text-gray-300 font-bold mb-4">選項 1：直接購買成品</h3>
-              <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
-                <label class="text-sm text-gray-400">市場單價<span class="text-xs text-yellow-500/70 ml-1 font-normal">(不含稅)</span></label>
-                <div class="flex items-center gap-2 self-end sm:self-auto">
-                  <input type="number" v-model.number="prices[material.id]" placeholder="輸入單價" class="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-24 text-right focus:outline-none focus:border-green-500 text-white font-bold" />
-                  <span class="text-gray-500">G</span>
+              
+              <!-- 預留空位 -->
+              <div
+                v-for="i in (MAX_SAVED - savedRecipes.length)"
+                :key="'empty-' + i"
+                class="p-3 bg-surface-container-low/20 rounded-lg border-l-2 border-transparent border-dashed h-[68px] flex items-center justify-center opacity-40 select-none"
+              >
+                <span class="text-xs text-secondary/50 font-bold tracking-widest uppercase">空位 {{ savedRecipes.length + i }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 歷史紀錄 -->
+          <section>
+            <div class="flex items-center justify-between mb-4">
+              <h3
+                class="font-label text-xs uppercase tracking-widest text-outline flex items-center gap-2"
+              >
+                <span class="material-symbols-outlined text-sm">history</span>
+                近期歷史紀錄
+              </h3>
+            </div>
+            <div class="space-y-2">
+              <p
+                v-if="historyRecipes.length === 0"
+                class="text-xs text-secondary italic"
+              >
+                尚無紀錄
+              </p>
+              <div
+                v-for="hist in historyRecipes"
+                :key="hist.resultId"
+                class="p-3 bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer rounded-lg border-l-2 flex justify-between items-center group"
+                :class="selectedRecipe?.resultId === hist.resultId ? 'border-primary bg-surface-container' : 'border-transparent hover:border-primary'"
+                @click="loadSavedRecipe(hist)"
+              >
+                <div class="flex-1 min-w-0 pr-2">
+                  <p
+                    class="text-sm truncate"
+                    :class="selectedRecipe?.resultId === hist.resultId ? 'text-primary font-bold' : 'text-secondary font-medium group-hover:text-primary'"
+                  >
+                    {{ hist.name }}
+                  </p>
+                  <p class="text-[10px] text-secondary mt-1">
+                    產出: {{ hist.yield }}
+                  </p>
                 </div>
               </div>
-              <div class="pt-3 border-t border-gray-700 flex justify-between items-center">
-                <div class="text-sm text-gray-400">
-                  需要 {{ material.quantity }} 個
-                  <div class="text-xs text-yellow-500/70 mt-0.5 whitespace-nowrap">含買家稅 5%</div>
+            </div>
+          </section>
+        </aside>
+
+        <!-- Center Content Area -->
+        <div class="flex-1 flex flex-col gap-6 w-full min-w-0">
+          <template v-if="selectedRecipe">
+            <!-- Recipe Header and Mobile Search -->
+            <div
+              class="flex flex-col gap-4 md:border-b md:border-outline-variant/10 md:pb-6"
+            >
+              <div class="md:hidden relative w-full mt-2">
+                <input
+                  type="text"
+                  v-model="searchQuery"
+                  @input="doSearch"
+                  @keyup.enter="confirmSearch"
+                  placeholder="搜尋配方..."
+                  class="w-full bg-surface-container border border-outline/30 rounded-xl px-4 py-3 text-sm font-bold text-on-surface focus:border-primary focus:ring-1 focus:ring-primary shadow-lg"
+                />
+                <div
+                  v-if="searchResults.length > 0"
+                  class="absolute z-50 w-full mt-2 bg-surface-container-high border border-outline-variant rounded-xl shadow-2xl max-h-60 overflow-y-auto"
+                >
+                  <button
+                    v-for="res in searchResults"
+                    :key="res.rawRecipe.id"
+                    @click="selectRecipe(res)"
+                    class="w-full text-left px-4 py-3 hover:bg-surface-container-highest transition-colors border-b border-outline/10 last:border-0 truncate font-bold text-primary"
+                  >
+                    {{ res.name }}
+                  </button>
                 </div>
-                <span class="text-lg font-bold text-white whitespace-nowrap ml-2">{{ formatGil(buyCost) }}</span>
+              </div>
+
+              <div
+                class="flex flex-col md:flex-row md:items-start justify-between gap-4"
+              >
+                <div class="min-w-0">
+                  <span
+                    class="font-label text-xs uppercase tracking-[0.05em] text-secondary block mb-1"
+                    >Recipe Details</span
+                  >
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <h2
+                      class="font-headline text-2xl md:text-3xl font-bold text-on-surface leading-tight break-words"
+                    >
+                      {{ selectedRecipe.name }}
+                    </h2>
+                    <button
+                      @click="copyName(selectedRecipe.name)"
+                      class="p-1 hover:bg-surface-container-high hover:text-primary transition-colors rounded-lg"
+                    >
+                      <span class="material-symbols-outlined text-lg"
+                        >content_copy</span
+                      >
+                    </button>
+                  </div>
+                  <p class="text-secondary text-sm italic mt-1 font-bold">
+                    單次產出:
+                    <span class="text-primary">{{ selectedRecipe.yield }}</span>
+                  </p>
+                </div>
+
+                <div
+                  class="flex items-center gap-3 w-full md:w-auto h-fit mt-2 md:mt-0"
+                >
+                  <button
+                    @click="saveCurrentRecipe"
+                    class="flex-1 md:flex-none justify-center px-4 py-2 text-sm font-bold flex items-center gap-2 rounded-lg transition-all active:scale-95 duration-200"
+                    :class="isCurrentSaved ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-primary-container text-on-primary-container hover:brightness-110'"
+                  >
+                    <span
+                      class="material-symbols-outlined text-sm"
+                      :data-weight="isCurrentSaved ? 'fill' : 'none'"
+                      >save</span
+                    >
+                    <span>{{ isCurrentSaved ? '已儲存' : '儲存配方' }}</span>
+                  </button>
+
+                  <div
+                    class="flex items-center justify-between gap-3 bg-surface-container p-2 rounded-lg border border-outline/10 shrink-0"
+                  >
+                    <span
+                      class="text-[10px] font-label uppercase tracking-widest text-outline whitespace-nowrap hidden sm:inline"
+                      >水晶計算</span
+                    >
+                    <span
+                      class="material-symbols-outlined text-outline sm:hidden"
+                      >diamond</span
+                    >
+                    <label
+                      class="relative inline-flex items-center cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        v-model="includeCrystals"
+                        class="sr-only peer"
+                      />
+                      <div
+                        class="w-9 h-5 bg-surface-container-highest rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"
+                      ></div>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <!-- 選項 2：自己製作 -->
-            <div class="border rounded-lg p-4 relative flex flex-col" :class="selectedMethodType === 'craft' ? 'border-green-500 bg-green-900/10' : 'border-gray-700 bg-gray-800/50 opacity-80'">
-              <div class="absolute top-0 right-0 p-2" v-if="selectedMethodType === 'craft'">
-                <span class="text-green-500 font-bold bg-green-900/40 px-2 py-1 text-xs rounded">✓ 自製較划算</span>
+            <!-- Materials Section -->
+            <div class="flex flex-col gap-4">
+              <div
+                class="flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+              >
+                <h3 class="font-headline text-xl text-amber-400/80">
+                  需要材料
+                </h3>
+                <div
+                  class="hidden md:flex bg-surface-container-lowest p-1 rounded-lg border border-outline/10 text-[11px] font-bold tracking-wide shrink-0"
+                >
+                  <button
+                    @click="viewMode = 'list'"
+                    class="px-3 py-1.5 rounded-md transition-colors"
+                    :class="viewMode === 'list' ? 'bg-primary text-on-primary shadow-sm' : 'text-secondary hover:text-on-surface'"
+                  >
+                    卡片列表模式
+                  </button>
+                  <button
+                    @click="viewMode = 'tree'"
+                    class="px-3 py-1.5 rounded-md transition-colors"
+                    :class="viewMode === 'tree' ? 'bg-primary text-on-primary shadow-sm' : 'text-secondary hover:text-on-surface'"
+                  >
+                    樹狀結構展開
+                  </button>
+                </div>
               </div>
-              <h3 class="text-gray-300 font-bold mb-4">選項 2：從原料開始製作</h3>
-              <div class="space-y-4 flex-grow">
-                <div class="text-sm text-gray-400 mb-2">做 {{ material.yield }} 個需要：</div>
-                <div class="pl-2 border-l border-gray-600 ml-1">
+
+              <!-- LIST VIEW Display (Visible if viewMode is list OR on mobile) -->
+              <div :class="(viewMode === 'list') ? 'block' : 'block md:hidden'">
+                <div class="space-y-4">
                   <material-node
-                    v-for="subMat in material.subMaterials"
-                    :key="subMat.id"
-                    :material="subMat"
+                    v-for="mat in selectedRecipe.materials"
+                    :key="mat.id"
+                    :material="mat"
                     :prices="prices"
-                    :depth="depth + 1"
+                    :depth="0"
                   />
                 </div>
               </div>
-              <div class="pt-3 mt-4 border-t border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-black/20 p-2 rounded gap-2">
-                <div class="text-sm text-gray-400">
-                  需要結果 {{ material.quantity }} 個
-                  <div class="text-xs mt-1 text-gray-500">若有小數依照產量比例推算</div>
-                </div>
-                <div class="text-right self-end sm:self-auto">
-                  <div class="text-xs text-gray-500 whitespace-nowrap">此方案總自製成本</div>
-                  <span class="text-lg font-bold text-white whitespace-nowrap">{{ formatGil(craftCost) }}</span>
+
+              <!-- TREE VIEW Display (Visible only if viewMode is tree AND on desktop) -->
+              <div
+                :class="(viewMode === 'tree') ? 'hidden md:block' : 'hidden'"
+              >
+                <div
+                  class="bg-surface-container-lowest/50 p-6 md:p-10 rounded-xl border border-outline-variant/10 overflow-x-auto custom-scrollbar shadow-inner"
+                >
+                  <div class="min-w-max flex flex-col">
+                    <tree-node
+                      :isRoot="true"
+                      :material="{ id: selectedRecipe.resultId, name: selectedRecipe.name, quantity: selectedRecipe.yield, yield: selectedRecipe.yield, isCraftable: true, isCrystal: false, subMaterials: selectedRecipe.materials }"
+                      :prices="prices"
+                      :depth="0"
+                      :index="0"
+                      :total="1"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
+          </template>
+
+          <!-- Empty State -->
+          <div
+            v-else
+            class="flex-1 flex flex-col items-center justify-center text-secondary gap-6 opacity-90 min-h-[50vh] md:-translate-x-[144px]"
+          >
+            <span
+              class="material-symbols-outlined text-6xl text-primary/70 drop-shadow-md"
+              >search</span
+            >
+            <div class="relative w-full max-w-xl mx-auto px-4 md:px-0">
+              <input
+                type="text"
+                v-model="searchQuery"
+                @input="doSearch"
+                @keyup.enter="confirmSearch"
+                placeholder="搜尋配方以開始計算成本..."
+                class="w-full bg-surface-container border border-outline/40 rounded-xl px-5 py-4 text-base font-bold text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/50 shadow-2xl transition-all"
+              />
+              <div
+                v-if="searchResults.length > 0"
+                class="absolute z-50 w-[calc(100%-2rem)] md:w-full mx-4 md:mx-0 mt-3 bg-surface-container-high border border-outline-variant rounded-xl shadow-2xl max-h-64 overflow-y-auto w-full"
+              >
+                <button
+                  v-for="res in searchResults"
+                  :key="res.rawRecipe.id"
+                  @click="selectRecipe(res)"
+                  class="w-full text-left px-5 py-3.5 hover:bg-surface-container-highest transition-colors border-b border-outline/10 last:border-0 truncate font-bold text-primary"
+                >
+                  {{ res.name }}
+                </button>
+              </div>
+            </div>
+            <p
+              class="font-bold text-sm tracking-widest uppercase text-outline hidden md:block"
+            >
+              開始你的加工旅程
+            </p>
           </div>
         </div>
-      </div>
-    </template>
 
-    <!-- Template: 樹狀模式節點（遞迴） -->
-    <template id="tree-node-template">
-      <div
-        v-if="!material.isCrystal || includeCrystals"
-        class="relative px-2 md:px-3 flex flex-col items-center"
-      >
-        <!-- 連接線（非根節點才渲染） -->
-        <template v-if="!isRoot">
-          <div class="absolute top-0 left-1/2 w-0.5 h-5 bg-gray-500 -translate-x-1/2 z-0"></div>
-          <div v-if="index !== 0" class="absolute top-0 left-0 w-1/2 h-0.5 bg-gray-500 z-0"></div>
-          <div v-if="index !== total - 1" class="absolute top-0 right-0 w-1/2 h-0.5 bg-gray-500 z-0"></div>
-        </template>
-
-        <!-- ═══ 節點卡片主體 ═══ -->
-        <div
-          class="z-10 flex flex-col rounded-xl border-2 shadow-lg transition-all relative shrink-0"
-          :class="[
-            isRoot
-              ? 'mt-0 w-48 md:w-56 border-purple-500 bg-[#1e1b3a] shadow-[0_0_16px_rgba(168,85,247,0.35)]'
-              : 'mt-5 w-36 md:w-44 bg-[#1a2035]',
-            !isRoot && isMissingPrice                              ? 'border-yellow-500/60' : '',
-            !isRoot && !isMissingPrice && selectedMethodType === 'craft' ? 'border-green-500/70' : '',
-            !isRoot && !isMissingPrice && selectedMethodType === 'buy'   ? 'border-red-500/60'   : '',
-            !isRoot && !isMissingPrice && selectedMethodType === 'none'  ? 'border-gray-600'     : '',
-          ]"
+        <!-- Right Sidebar / Bottom Sheet: Crafting Summary -->
+        <aside
+          v-if="selectedRecipe"
+          class="w-full md:w-80 shrink-0 mb-4 md:mb-0 md:sticky md:top-24 md:self-start z-20"
         >
-          <!-- 數量徽章 -->
           <div
-            v-if="!isRoot"
-            class="absolute -top-3 -right-3 bg-purple-600 border-2 border-[#0f1424] rounded-full h-6 w-6 flex items-center justify-center text-[10px] font-bold text-white shadow-md z-20"
-          >{{ material.quantity }}</div>
-
-          <!-- 卡片上半：品名 & 價格 -->
-          <div class="p-2.5 flex flex-col gap-1.5">
-            <!-- 品名列 -->
-            <div class="flex items-center justify-between gap-1">
+            class="glass p-5 md:p-6 rounded-xl border border-outline-variant/10 shadow-[0_0_20px_rgba(0,0,0,0.4)] space-y-5"
+          >
+            <h2
+              class="font-headline text-xl md:text-lg text-on-surface border-b border-outline-variant/10 pb-3 flex items-center justify-between"
+            >
+              <span class="flex items-center gap-2"
+                ><span class="material-symbols-outlined text-amber-500"
+                  >point_of_sale</span
+                >
+                結算面板</span
+              >
               <span
-                class="font-bold truncate leading-tight"
-                :class="isRoot ? 'text-purple-300 text-sm md:text-base' : 'text-gray-200 text-xs md:text-sm'"
-                :title="material.name"
-              >{{ material.name }}</span>
-              <button @click="copyName(material.name)" class="text-gray-500 hover:text-white transition-colors p-0.5 rounded hover:bg-white/10 flex-shrink-0" title="複製名稱">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
+                class="text-[10px] md:text-xs text-secondary font-body bg-surface-container px-2 py-1 rounded"
+                >單次產量 {{ selectedRecipe.yield }}</span
+              >
+            </h2>
+
+            <!-- Mode Toggle -->
+            <div class="flex bg-surface-container-lowest p-1 rounded-lg">
+              <button
+                @click="calcMode = 'save'"
+                class="flex-1 py-1.5 text-[11px] uppercase tracking-widest font-bold rounded-md transition-all border"
+                :class="calcMode === 'save' ? 'bg-primary text-on-primary border-primary' : 'text-secondary border-transparent hover:text-on-surface'"
+              >
+                自製省錢
+              </button>
+              <button
+                @click="calcMode = 'earn'"
+                class="flex-1 py-1.5 text-[11px] uppercase tracking-widest font-bold rounded-md transition-all border"
+                :class="calcMode === 'earn' ? 'bg-primary text-on-primary border-primary' : 'text-secondary border-transparent hover:text-on-surface'"
+              >
+                對外販售
               </button>
             </div>
 
-            <!-- Root：產量提示 -->
-            <div v-if="isRoot" class="text-[10px] text-purple-400/80 font-semibold">
-              單次產出 {{ material.yield }} 個
+            <div
+              class="space-y-4 bg-surface-container p-4 rounded-lg border border-outline/5"
+            >
+              <!-- Market Price Input -->
+              <div>
+                <div class="flex justify-between items-end mb-2">
+                  <label
+                    class="text-[11px] text-outline uppercase tracking-widest font-bold"
+                    >市場行情 (單個)</label
+                  >
+                  <span
+                    v-if="calcMode === 'save'"
+                    class="text-[9px] text-amber-500/80 border border-amber-500/30 bg-amber-500/5 px-1 rounded truncate"
+                    >不含買家稅</span
+                  >
+                </div>
+                <div class="relative">
+                  <input
+                    type="number"
+                    v-model.number="prices[selectedRecipe.resultId]"
+                    class="bg-[#05080f] text-on-surface font-bold text-lg px-3 py-2 rounded-lg w-full border border-outline/20 focus:border-primary focus:ring-1 focus:ring-primary transition-all text-right pr-9"
+                    placeholder="0"
+                  />
+                  <span
+                    class="absolute right-3 top-3 text-xs text-secondary font-bold"
+                    >G</span
+                  >
+                </div>
+              </div>
+
+              <div v-show="calcMode === 'earn'">
+                <label
+                  class="text-[11px] text-outline uppercase tracking-widest block mb-2 font-bold"
+                  >賣出扣稅率</label
+                >
+                <select
+                  v-model.number="sellTaxRate"
+                  class="w-full bg-[#05080f] border border-outline/20 text-sm p-2 outline-none text-amber-400 font-bold rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-all text-right cursor-pointer"
+                >
+                  <option :value="0.01">1%</option>
+                  <option :value="0.02">2%</option>
+                  <option :value="0.03">3%</option>
+                  <option :value="0.04">4%</option>
+                  <option :value="0.05">5%</option>
+                </select>
+              </div>
             </div>
 
-            <!-- 價格輸入 -->
-            <input
-              type="number"
-              v-model.number="prices[material.id]"
-              class="w-full bg-black/30 border rounded-lg px-2 py-1 text-center font-bold focus:outline-none transition-colors"
-              :class="[
-                isRoot ? 'text-sm text-white border-purple-600/50 focus:border-purple-400' : 'text-xs text-white border-gray-600/50 focus:border-blue-400',
-                isMissingPrice ? 'ring-1 ring-yellow-500/40' : ''
-              ]"
-              :placeholder="isRoot ? '成品市價 (G)' : '單價 (G)'"
-            />
+            <div class="pt-4 border-t border-outline-variant/10">
+              <template v-if="calcMode === 'earn'">
+                <div class="flex flex-col gap-3 mb-5">
+                  <div class="flex justify-between text-sm">
+                    <span class="text-secondary font-medium"
+                      >總生產成本
+                      <span class="text-[10px] opacity-60"
+                        >(含購材料)</span
+                      ></span
+                    >
+                    <span class="text-error font-bold"
+                      >{{ formatGil(totalCost) }}</span
+                    >
+                  </div>
+                  <div class="flex justify-between text-sm">
+                    <span class="text-secondary font-medium"
+                      >預估稅金
+                      <span class="text-[10px] opacity-60"
+                        >({{ (sellTaxRate * 100).toFixed(0) }}%)</span
+                      ></span
+                    >
+                    <span class="text-amber-500 font-bold"
+                      >{{ formatGil(taxAmount) }}</span
+                    >
+                  </div>
+                </div>
+                <div
+                  class="pt-4 border-t border-outline-variant/10 flex flex-col items-center"
+                >
+                  <span
+                    class="text-xs text-outline uppercase tracking-widest font-bold mb-2"
+                    >預估純利潤</span
+                  >
+                  <span
+                    class="text-3xl font-headline font-bold drop-shadow-md"
+                    :class="profit >= 0 ? 'text-green-400' : 'text-error'"
+                  >
+                    {{ profit > 0 ? '+' : '' }}{{ formatGil(profit) }}<span
+                      class="text-lg ml-1"
+                      >G</span
+                    >
+                  </span>
+                </div>
+              </template>
 
-            <!-- 底層素材標示 -->
-            <div
-              v-if="!material.isCraftable && !isRoot"
-              class="text-[10px] text-gray-500 font-semibold text-center tracking-wide"
-            >底層素材</div>
+              <template v-else>
+                <div class="flex flex-col gap-3 mb-5">
+                  <div class="flex justify-between text-sm">
+                    <span class="text-secondary font-medium">自製最佳成本</span>
+                    <span class="text-blue-400 font-bold"
+                      >{{ formatGil(totalCost) }}</span
+                    >
+                  </div>
+                  <div class="flex justify-between text-sm">
+                    <span class="text-secondary font-medium"
+                      >直購總花費
+                      <span class="text-[10px] opacity-60">(含5%稅)</span></span
+                    >
+                    <span class="text-error font-bold"
+                      >{{ formatGil(directBuyCost) }}</span
+                    >
+                  </div>
+                </div>
+
+                <div
+                  class="mt-4 p-4 rounded-xl border flex gap-3 md:gap-4 items-center shadow-inner"
+                  :class="saveDiff > 0 ? 'border-green-500/30 bg-green-500/10' : saveDiff < 0 ? 'border-red-500/30 bg-red-500/10' : 'border-outline/20 bg-surface-container'"
+                >
+                  <div
+                    class="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 flex items-center justify-center shrink-0 shadow-md"
+                    :class="saveDiff > 0 ? 'border-green-500' : saveDiff < 0 ? 'border-red-500' : 'border-outline'"
+                  >
+                    <span
+                      class="material-symbols-outlined"
+                      :class="saveDiff > 0 ? 'text-green-500' : saveDiff < 0 ? 'text-red-500' : 'text-outline'"
+                      style="font-variation-settings: &quot;FILL&quot; 1"
+                      >lightbulb</span
+                    >
+                  </div>
+                  <div>
+                    <h4
+                      class="font-bold text-[10px] md:text-xs uppercase tracking-wider mb-1"
+                      :class="saveDiff > 0 ? 'text-green-500' : saveDiff < 0 ? 'text-red-500' : 'text-outline'"
+                    >
+                      建議對策
+                    </h4>
+                    <p
+                      v-if="saveDiff > 0"
+                      class="text-on-surface text-sm md:text-base font-bold leading-tight"
+                    >
+                      建議自製，可省下 <br /><span class="text-green-400"
+                        >{{ formatGil(saveDiff) }} G</span
+                      >
+                    </p>
+                    <p
+                      v-else-if="saveDiff < 0"
+                      class="text-on-surface text-sm md:text-base font-bold leading-tight"
+                    >
+                      直接買現成，自製會虧 <br /><span class="text-red-400"
+                        >{{ formatGil(Math.abs(saveDiff)) }} G</span
+                      >
+                    </p>
+                    <p
+                      v-else
+                      class="text-on-surface text-sm md:text-base font-bold"
+                    >
+                      兩者成本相同。
+                    </p>
+                  </div>
+                </div>
+              </template>
+            </div>
           </div>
+        </aside>
+      </main>
 
-          <!-- 比較條：非根可製作節點 -->
+      <!-- Mobile Bottom Nav -->
+      <nav
+        class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center h-[72px] px-2 bg-[#10131b]/95 backdrop-blur-md z-50 border-t border-outline/10 safe-area-pb"
+      >
+        <button
+          class="flex flex-col items-center justify-center text-amber-500 font-bold bg-amber-500/10 rounded-xl px-5 py-2 w-1/3"
+        >
+          <span class="material-symbols-outlined text-xl">architecture</span>
+          <span class="font-label text-[10px] uppercase tracking-wider mt-1"
+            >計算機</span
+          >
+        </button>
+        <a
+          href="#"
+          @click.prevent="window.scrollTo({top: 0, behavior: 'smooth'})"
+          class="flex flex-col items-center justify-center text-slate-500 hover:text-amber-300 w-1/3 py-2"
+        >
+          <span class="material-symbols-outlined text-xl">arrow_upward</span>
+          <span class="font-label text-[10px] uppercase tracking-wider mt-1"
+            >置頂</span
+          >
+        </a>
+      </nav>
+
+      <!-- Footer -->
+      <footer
+        class="w-full py-12 mt-12 bg-[#0a0e16] border-t border-outline-variant/10 text-center relative z-10 hidden md:block"
+      >
+        <div class="max-w-4xl mx-auto px-8">
+          <h4
+            class="text-xs font-bold text-outline uppercase tracking-[0.2em] mb-5 flex justify-center items-center gap-2"
+          >
+            <span class="material-symbols-outlined text-sm">gavel</span>
+            【免責聲明與版權宣告】
+          </h4>
           <div
-            v-if="material.isCraftable && !isRoot"
-            class="text-[10px] px-2.5 py-1.5 border-t border-white/5 flex flex-col gap-1 bg-black/20"
+            class="text-[11px] leading-relaxed text-[#5c6e8c] space-y-3 mb-8 text-left inline-block bg-surface-container-highest p-6 rounded-xl shadow-inner border border-outline/5"
           >
-            <div class="flex justify-between text-gray-400 font-medium">
-              <span>材料: {{ formatGil(craftCost) }}</span>
-              <span>直購: {{ formatGil(buyCost) }}</span>
-            </div>
-            <div
-              v-if="selectedMethodType === 'craft' && buyCost !== null && craftCost !== null"
-              class="flex items-center justify-center bg-green-900/50 text-green-400 font-bold rounded-md py-0.5"
-            >✓ 自製省 {{ formatGil(buyCost - craftCost) }}</div>
-            <div
-              v-else-if="selectedMethodType === 'buy' && buyCost !== null && craftCost !== null"
-              class="flex items-center justify-center bg-red-900/40 text-red-400 font-bold rounded-md py-0.5"
-            >✗ 直購省 {{ formatGil(craftCost - buyCost) }}</div>
-            <div
-              v-else-if="selectedMethodType === 'none'"
-              class="text-center text-gray-600 text-[9px]"
-            >尚未填入價格</div>
+            <p>
+              <span class="text-on-surface font-bold">非官方工具：</span
+              >本網站為玩家自製的第三方 FF14 計算工具，與 Square Enix
+              官方無任何關係。
+            </p>
+            <p>
+              <span class="text-on-surface font-bold">數據僅供參考：</span
+              >市場板價格隨時波動，本站計算結果僅供參考。進行之任何決策風險自負。
+            </p>
+            <p>
+              <span class="text-on-surface font-bold">版權聲明：</span>FINAL
+              FANTASY is a registered trademark of Square Enix Holdings Co.,
+              Ltd.
+            </p>
           </div>
-
-          <!-- 比較條：Root -->
           <div
-            v-if="isRoot"
-            class="text-[11px] px-3 py-2 border-t border-purple-700/30 flex flex-col gap-1 bg-black/20"
+            class="pt-5 border-t border-outline-variant/10 text-[10px] text-[#5c6e8c] flex flex-col md:flex-row justify-center items-center gap-4 font-bold"
           >
-            <div class="flex justify-between font-semibold">
-              <span class="text-gray-400">最優製作</span>
-              <span class="text-blue-300">{{ formatGil(rootCraftCost) }}</span>
-            </div>
-            <div class="flex justify-between font-semibold">
-              <span class="text-gray-400">直接購買</span>
-              <span class="text-gray-200">{{ formatGil(buyCost) }}</span>
-            </div>
-            <div
-              v-if="buyCost !== null && rootCraftCost !== null && buyCost > rootCraftCost"
-              class="mt-0.5 flex items-center justify-center bg-green-900/50 border border-green-700/40 text-green-400 font-bold rounded-lg px-2 py-0.5"
-            >✓ 建議自製，省 {{ formatGil(buyCost - rootCraftCost) }}</div>
-            <div
-              v-else-if="buyCost !== null && rootCraftCost !== null && buyCost < rootCraftCost"
-              class="mt-0.5 flex items-center justify-center bg-red-900/40 border border-red-700/40 text-red-400 font-bold rounded-lg px-2 py-0.5"
-            >✗ 建議直購，省 {{ formatGil(rootCraftCost - buyCost) }}</div>
+            <p>
+              Data provided by
+              <a
+                href="https://github.com/ffxiv-teamcraft/ffxiv-teamcraft"
+                target="_blank"
+                class="hover:text-primary transition-colors"
+                >FFXIV Teamcraft</a
+              >
+              under the MIT License
+            </p>
+            <span
+              class="hidden md:inline w-1 h-1 rounded-full bg-outline-variant/40"
+            ></span>
+            <span class="tracking-widest uppercase"
+              >FF14 Crafting Calculator</span
+            >
           </div>
+        </div>
+      </footer>
+    </div>
 
-          <!-- 展開/收合 按鈕 -->
-          <button
-            v-if="material.isCraftable && validSubMaterials.length > 0"
-            @click="isExpanded = !isExpanded"
-            class="absolute -bottom-3.5 left-1/2 -translate-x-1/2 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded-full p-1 text-white shadow-md transition-all z-20 cursor-pointer"
-            :title="isExpanded ? '收合子材料' : '展開子材料'"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 transition-transform duration-300" :class="isExpanded ? 'rotate-180 text-green-400' : 'text-gray-300'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+    <!-- ======================= TEMPLATES ======================= -->
+
+    <!-- Template: 列表模式材料節點 -->
+    <template id="material-node-template">
+      <!-- Card Container -->
+      <div
+        v-if="!material.isCrystal || includeCrystals"
+        class="bg-surface-container rounded-xl border transition-all overflow-visible relative scroll-mt-20"
+        :class="[depth === 0 ? 'border-outline/20 p-4 md:p-5 shadow-lg' : 'border-outline/10 p-3 md:p-4 ml-3 sm:ml-6 mt-3 bg-surface-container-lowest shadow-inner']"
+      >
+        <!-- Header: Icon, Title, Qty -->
+        <div class="flex justify-between items-start mb-4">
+          <div class="flex items-center gap-3 md:gap-4 shrink-0 min-w-0 pr-2">
+            <div class="flex flex-col min-w-0">
+              <span
+                class="font-bold text-on-surface truncate text-base md:text-lg leading-tight"
+                >{{ material.name }}</span
+              >
+              <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                <button
+                  @click="copyName(material.name)"
+                  class="text-[10px] text-amber-500/70 font-bold uppercase tracking-wider flex items-center gap-0.5 hover:text-amber-500 transition-colors bg-surface-container-highest px-1.5 py-0.5 rounded"
+                >
+                  <span class="material-symbols-outlined text-[12px]"
+                    >content_copy</span
+                  >
+                  COPY
+                </button>
+                <span
+                  v-if="material.isCraftable"
+                  class="text-[10px] bg-secondary-container/50 text-secondary px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-secondary/20"
+                  >單次產出 {{ material.yield }}</span
+                >
+                <span
+                  v-if="!material.isCraftable"
+                  class="text-[10px] bg-outline/20 text-outline px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                  >採集/直購</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="flex flex-col items-end shrink-0">
+            <span
+              class="text-secondary font-bold text-sm md:text-base border border-outline/30 bg-[#05080f]/50 px-2 py-0.5 rounded-lg shadow-sm"
+              >x {{ material.quantity }}</span
+            >
+            <div
+              class="text-[10px] md:text-[11px] mt-1.5 pr-1 text-outline uppercase tracking-widest text-right whitespace-nowrap"
+            >
+              小計
+              <span class="text-on-surface ml-0.5 font-bold"
+                >{{ formatGil(subtotal) }}</span
+              >
+            </div>
+          </div>
         </div>
 
-        <!-- 垂直連線（展開時） -->
+        <!-- Input Section (Base Material) -->
         <div
-          v-if="material.isCraftable && isExpanded && validSubMaterials.length > 0"
-          class="w-0.5 h-6 bg-gray-500 z-0 relative mt-0.5"
-        ></div>
-
-        <!-- 子節點群組 -->
-        <div
-          v-if="material.isCraftable && isExpanded && validSubMaterials.length > 0"
-          class="flex flex-row justify-center relative"
+          v-if="!material.isCraftable"
+          class="bg-surface-container-highest p-3 md:p-4 rounded-xl border border-outline/10 shadow-inner"
         >
-          <tree-node
-            v-for="(sub, i) in validSubMaterials"
-            :key="sub.id"
-            :material="sub"
-            :index="i"
-            :total="validSubMaterials.length"
-            :prices="prices"
-            :depth="depth + 1"
-          />
+          <div class="flex justify-between items-center gap-2">
+            <label
+              class="text-[11px] md:text-xs uppercase tracking-widest text-secondary font-bold leading-tight"
+              >單價
+              <span
+                class="text-[9px] text-primary/80 font-normal border border-primary/30 px-1 rounded ml-1"
+                >自動+5%買家稅</span
+              ></label
+            >
+            <div class="relative w-28 md:w-36 shrink-0">
+              <input
+                type="number"
+                v-model.number="prices[material.id]"
+                class="w-full bg-[#05080f] text-on-surface font-bold text-base md:text-lg px-3 py-1.5 rounded-lg border border-outline/20 focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-right pr-7"
+                placeholder="0"
+              />
+              <span
+                class="absolute right-2.5 top-2 text-[10px] md:text-xs text-secondary font-bold"
+                >G</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- Craftable Comparison Details -->
+        <div v-else class="space-y-4 pt-2">
+          <!-- Options Container -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+            <!-- Direct Buy -->
+            <div
+              class="relative p-3.5 border rounded-xl flex flex-col shadow-sm transition-colors"
+              :class="selectedMethodType === 'buy' ? 'border-green-500/40 bg-green-500/5' : 'border-outline/10 bg-surface-container-highest'"
+            >
+              <div
+                v-if="selectedMethodType === 'buy'"
+                class="absolute -top-2 -right-1 bg-green-500 text-[#05080f] text-[10px] md:text-xs font-bold px-2 md:px-3 py-0.5 rounded uppercase flex items-center gap-1 shadow-md z-10"
+              >
+                <span class="material-symbols-outlined text-[14px]">done</span
+                >直購較划算
+              </div>
+
+              <h4
+                class="text-xs md:text-sm font-bold text-on-surface mb-3 flex items-center gap-1"
+              >
+                <span
+                  class="material-symbols-outlined text-[16px] text-secondary"
+                  >storefront</span
+                >
+                選項 1：直接購買成品
+              </h4>
+              <div class="flex justify-between items-center gap-2 mb-3">
+                <label
+                  class="text-[10px] md:text-xs uppercase tracking-widest text-secondary font-bold whitespace-nowrap"
+                  >市場單價
+                  <span
+                    class="text-primary/80 text-[9px] font-normal border border-primary/30 px-1 rounded ml-0.5 truncate"
+                    >自動+5%買家稅</span
+                  ></label
+                >
+                <div class="relative w-24 md:w-32">
+                  <input
+                    type="number"
+                    v-model.number="prices[material.id]"
+                    class="w-full bg-[#05080f] text-on-surface font-bold px-2 py-1.5 rounded-lg border text-right pr-6"
+                    :class="selectedMethodType === 'buy' ? 'border-green-500/40 focus:border-green-500 focus:ring-green-500/20' : 'border-outline/20 focus:border-primary focus:ring-primary/20'"
+                    placeholder="0"
+                  />
+                  <span
+                    class="absolute right-2 top-2 text-[10px] text-secondary font-bold"
+                    >G</span
+                  >
+                </div>
+              </div>
+              <div
+                class="mt-auto pt-2.5 border-t border-outline/10 flex justify-between items-end"
+              >
+                <span class="text-[10px] text-outline leading-tight"
+                  >需求 {{ material.quantity }} 個<br /><span
+                    class="text-amber-500/70 font-bold"
+                    >(含買家稅 5%)</span
+                  ></span
+                >
+                <span
+                  class="text-base md:text-lg font-bold"
+                  :class="selectedMethodType === 'buy' ? 'text-green-400' : 'text-on-surface'"
+                  >{{ formatGil(buyCost) }}</span
+                >
+              </div>
+            </div>
+
+            <!-- Craft Option -->
+            <div
+              class="relative p-3.5 border rounded-xl flex flex-col shadow-sm transition-colors"
+              :class="selectedMethodType === 'craft' ? 'border-green-500/40 bg-green-500/5' : 'border-outline/10 bg-surface-container-highest'"
+            >
+              <div
+                v-if="selectedMethodType === 'craft'"
+                class="absolute -top-2 -right-1 bg-green-500 text-[#05080f] text-[10px] md:text-xs font-bold px-2 md:px-3 py-0.5 rounded uppercase flex items-center gap-1 shadow-md z-10"
+              >
+                <span class="material-symbols-outlined text-[14px]">done</span
+                >自製較划算
+              </div>
+
+              <h4
+                class="text-xs md:text-sm font-bold text-on-surface mb-3 flex items-center gap-1"
+              >
+                <span
+                  class="material-symbols-outlined text-[16px] text-secondary"
+                  >handyman</span
+                >
+                選項 2：從原料自製
+              </h4>
+              <p
+                class="text-[11px] md:text-xs text-secondary leading-relaxed border-l-2 border-primary/50 pl-2.5 mb-3 bg-primary/5 py-1 pr-1 rounded-r-md"
+              >
+                做一組可產出
+                <span class="font-bold text-primary">{{ material.yield }}</span>
+                個，請展開下方結構確認所需原料成本。
+              </p>
+              <div
+                class="mt-auto flex justify-between items-end pt-2.5 border-t border-outline/10"
+              >
+                <span class="text-[10px] text-outline leading-tight"
+                  >需求量自製佔比總計<br /><span class="text-secondary"
+                    >(最佳成本)</span
+                  ></span
+                >
+                <span
+                  class="text-base md:text-lg font-bold"
+                  :class="selectedMethodType === 'craft' ? 'text-green-400' : 'text-on-surface'"
+                  >{{ formatGil(craftCost) }}</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Recursive Sub Materials Button -->
+          <button
+            @click="isExpanded = !isExpanded"
+            class="w-full py-2.5 bg-surface-container max-w-full hover:bg-surface-bright transition-all rounded-xl flex items-center justify-center gap-2 border border-outline/10 group mt-2 shadow-sm font-bold text-xs"
+          >
+            <span
+              class="material-symbols-outlined text-secondary group-hover:text-amber-500 transition-colors text-lg"
+              :class="isExpanded ? 'rotate-180 text-amber-500' : ''"
+              >expand_more</span
+            >
+            <span
+              class="text-secondary group-hover:text-amber-500 transition-colors"
+              >{{ isExpanded ? '收合配方原料' : '展開配方原料' }}</span
+            >
+          </button>
+
+          <!-- Recursive Area -->
+          <div
+            v-show="isExpanded && validSubMaterials.length > 0"
+            class="pt-2 animate-fade-in"
+          >
+            <material-node
+              v-for="subMat in validSubMaterials"
+              :key="subMat.id"
+              :material="subMat"
+              :prices="prices"
+              :depth="depth + 1"
+            />
+          </div>
         </div>
       </div>
     </template>
+
+    <!-- Template: 樹狀模式節點 -->
+    <template id="tree-node-template">
+      <div v-if="!material.isCrystal || includeCrystals" class="font-body text-sm md:text-base text-on-surface w-max">
+        
+        <!-- Parent Row -->
+        <div class="flex items-center gap-1.5 py-1.5 md:py-2.5 relative group rounded pl-1 w-max hover:bg-surface-container/50 transition-colors">
+          
+          <!-- Connectors for Non-Root -->
+          <div v-if="!isRoot" class="absolute left-0 top-1/2 w-6 border-t border-dotted border-outline-variant/60 -translate-x-full"></div>
+          
+          <!-- Expand/Collapse Button (if craftable and has valid submaterials) -->
+          <button v-if="material.isCraftable && validSubMaterials.length > 0"
+                  @click="isExpanded = !isExpanded"
+                  class="w-3.5 h-3.5 md:w-4 md:h-4 flex items-center justify-center font-bold text-secondary bg-surface-container border border-outline/50 border-dotted rounded-sm leading-none shrink-0 cursor-pointer text-[10px] md:text-[12px] hover:text-amber-500 hover:border-amber-500/50 transition-colors z-10 relative">
+             {{ isExpanded ? '-' : '+' }}
+          </button>
+          
+          <div v-else-if="!isRoot" class="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0 relative z-10">
+             <div class="w-1.5 h-1.5 bg-outline-variant/40 rounded-full mx-auto mt-1 md:mt-1.5"></div>
+          </div>
+          
+          <!-- Item Name -->
+          <div class="flex items-center gap-1">
+             <span class="font-bold tracking-wide" :class="isRoot ? 'text-base md:text-lg text-primary' : 'text-primary/90 md:text-base'">{{ material.name }}</span>
+             <button
+               @click="copyName(material.name)"
+               class="text-secondary hover:text-primary transition-colors shrink-0 bg-surface/50 rounded flex items-center justify-center p-0.5 tooltip"
+               title="複製名稱"
+             >
+               <span class="material-symbols-outlined text-[13px] md:text-[15px]"
+                 >content_copy</span
+               >
+             </button>
+          </div>
+          
+          <!-- Quantity -->
+          <span class="text-secondary text-xs md:text-sm mr-1 md:mr-2">
+            {{ isRoot ? '產量: ' + material.yield : '×' + material.quantity }}
+          </span>
+
+          <!-- Price Input -->
+          <div class="flex items-center gap-1">
+            <input type="number" 
+                   v-model.number="prices[material.id]"
+                   placeholder="0"
+                   class="w-16 md:w-24 md:h-7 bg-[#05080f] text-on-surface border border-outline/30 rounded px-1.5 py-0.5 md:py-1 text-xs md:text-sm text-right focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50" />
+            <span class="text-[10px] md:text-xs text-secondary font-bold">G</span>
+          </div>
+
+          <!-- Calculation Indicator (Requested by user) -->
+          <div v-if="material.isCraftable && !isRoot" class="ml-1 md:ml-3 text-[10px] md:text-xs flex items-center gap-1 font-bold">
+             <span v-if="selectedMethodType === 'craft' && buyCost !== null && craftCost !== null" class="text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20">✔ 自製</span>
+             <span v-else-if="selectedMethodType === 'buy' && buyCost !== null && craftCost !== null" class="text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">▶ 直購</span >
+             <!-- Show cost if available -->
+             <span v-if="craftCost !== null || buyCost !== null" class="text-secondary opacity-80 border-l border-outline/30 pl-2">
+                {{ formatGil(selectedMethodType === 'craft' ? craftCost : buyCost) }}
+             </span>
+          </div>
+
+          <!-- Root Status -->
+          <div v-else-if="isRoot" class="ml-4 md:ml-6 text-[11px] md:text-sm font-bold flex items-center gap-2">
+             <span v-if="rootCraftCost > 0" class="text-green-400 bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">最佳成本: {{ formatGil(rootCraftCost) }}</span>
+          </div>
+        </div>
+        
+        <!-- Children tree -->
+        <div v-show="material.isCraftable && isExpanded && validSubMaterials.length > 0"
+             class="ml-[7px] relative mt-0.5">
+          <!-- Continuous vertical stalk for children -->
+          <!-- offset left to correctly overlap the buttons. pl-6 provides horizontal spacing -->
+          <div class="absolute left-0 top-0 bottom-[16px] w-px border-l border-dotted border-outline-variant/60 -z-10"></div>
+          
+          <div v-for="(sub, i) in validSubMaterials" :key="sub.id" class="relative pl-6">
+            <tree-node
+              :material="sub"
+              :index="i"
+              :total="validSubMaterials.length"
+              :prices="prices"
+              :depth="depth + 1"
+            />
+          </div>
+        </div>
+        
+      </div>
+    </template>
+
+    <style>
+      /* CSS Animations mapped directly in Vue for smoother expand/collapse if desired */
+      .animate-fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+      }
+      .animate-fade-in-down {
+        animation: fadeInDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes fadeInDown {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
 
     <script src="app.js"></script>
   </body>

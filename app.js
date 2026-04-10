@@ -82,6 +82,7 @@ const MaterialNode = {
   },
   setup(props) {
     const includeCrystals = inject("includeCrystals");
+    const isExpanded = ref(false);
 
     const buyCost = computed(() =>
       calcBuyCost(props.prices[props.material.id], props.material.quantity),
@@ -118,8 +119,16 @@ const MaterialNode = {
       );
     });
 
+    // Valid sub-materials filtering logic for iteration
+    const validSubMaterials = computed(() => {
+      const subs = props.material.subMaterials ?? [];
+      return includeCrystals.value ? subs : subs.filter((m) => !m.isCrystal);
+    });
+
     return {
       includeCrystals,
+      isExpanded,
+      validSubMaterials,
       buyCost,
       craftCost,
       subtotal,
@@ -234,6 +243,11 @@ createApp({
     const LS_PRICES_KEY = "ff14_saved_prices";
     const savedRecipes = ref([]); // [{ resultId, name, yield }]
 
+    // ── 歷史紀錄（最多 3 筆） ──────────────────────────────────────────────────
+    const MAX_HISTORY = 3;
+    const LS_HISTORY_KEY = "ff14_history_recipes";
+    const historyRecipes = ref([]);
+
     const isLoading = ref(true);
     const loadingMsg = ref("正在連線取得配方與中文翻譯庫 (~15MB)...");
 
@@ -267,6 +281,7 @@ createApp({
         const storedPrices = JSON.parse(localStorage.getItem(LS_PRICES_KEY) || "{}");
         Object.assign(prices, storedPrices);
         savedRecipes.value = JSON.parse(localStorage.getItem(LS_RECIPES_KEY) || "[]");
+        historyRecipes.value = JSON.parse(localStorage.getItem(LS_HISTORY_KEY) || "[]");
       } catch (err) {
         console.error("Data loading error:", err);
         loadingMsg.value = "資料庫載入失敗，可能發生網路錯誤。請重新整理。";
@@ -346,8 +361,22 @@ createApp({
       searchQuery.value = "";
       searchResults.value = [];
       if (!(selectedRecipe.value.resultId in prices)) {
-        prices[selectedRecipe.value.resultId] = 0;
+        prices[selectedRecipe.value.resultId] = "";
       }
+
+      // ── 新增至歷史紀錄 ──────────────────────────────────────────────────
+      const newHist = {
+        resultId: selectedRecipe.value.resultId,
+        name: selectedRecipe.value.name,
+        yield: selectedRecipe.value.yield
+      };
+      // 移除原有的（如果有的話），將新的推到最前面
+      historyRecipes.value = historyRecipes.value.filter(h => h.resultId !== newHist.resultId);
+      historyRecipes.value.unshift(newHist);
+      if (historyRecipes.value.length > MAX_HISTORY) {
+        historyRecipes.value = historyRecipes.value.slice(0, MAX_HISTORY);
+      }
+      localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(historyRecipes.value));
     };
 
     onMounted(initData);
@@ -363,10 +392,17 @@ createApp({
       const { resultId, name } = selectedRecipe.value;
       const yieldQty = selectedRecipe.value.yield;
 
-      // 已存在則移到最前（更新）
+      const isAlreadySaved = savedRecipes.value.some(r => r.resultId === resultId);
+      
+      if (!isAlreadySaved && savedRecipes.value.length >= MAX_SAVED) {
+        alert(`【收藏清單已滿】\n\n目前的收藏配方已經達到上限 (${MAX_SAVED} 筆) 囉！\n若要收藏新的配方，請先至左欄刪除一些較少用的配方。`);
+        return;
+      }
+
+      // 已存在則移到最前（更新），否則新增
       const filtered = savedRecipes.value.filter((r) => r.resultId !== resultId);
       filtered.unshift({ resultId, name, yield: yieldQty });
-      savedRecipes.value = filtered.slice(0, MAX_SAVED);
+      savedRecipes.value = filtered;
       localStorage.setItem(LS_RECIPES_KEY, JSON.stringify(savedRecipes.value));
     };
 
@@ -457,6 +493,8 @@ createApp({
       loadSavedRecipe,
       isCurrentSaved,
       MAX_SAVED,
+      // 歷史紀錄
+      historyRecipes,
     };
   },
 }).mount("#app");
