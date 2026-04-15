@@ -1,11 +1,8 @@
 const { createApp, ref, computed, reactive, inject, provide, onMounted, watch } = Vue;
 
-
-// ─── API 來源 ────────────────────────────────────────────────────────────────
-const RECIPES_URL =
-  "https://raw.githubusercontent.com/ffxiv-teamcraft/ffxiv-teamcraft/master/libs/data/src/lib/json/recipes.json";
-const ITEMS_TW_URL =
-  "https://raw.githubusercontent.com/ffxiv-teamcraft/ffxiv-teamcraft/master/libs/data/src/lib/json/tw/tw-items.json";
+// ─── API 來源 (改為讀取本地 MessagePack 檔案) ────────────────────────────────
+const RECIPES_URL = "./data/recipes.msgpack";
+const ITEMS_TW_URL = "./data/items-tw.msgpack";
 
 // ─── 共用 Utilities ───────────────────────────────────────────────────────────
 const formatGil = (val) => {
@@ -119,7 +116,6 @@ const MaterialNode = {
       );
     });
 
-    // Valid sub-materials filtering logic for iteration
     const validSubMaterials = computed(() => {
       const subs = props.material.subMaterials ?? [];
       return includeCrystals.value ? subs : subs.filter((m) => !m.isCrystal);
@@ -180,7 +176,6 @@ const TreeNode = {
       return (cost / props.material.yield) * props.material.quantity;
     });
 
-    // Root 節點的總製作成本（直接加總所有 material，不乘 quantity）
     const rootCraftCost = computed(() => {
       if (!props.isRoot) return null;
       let total = 0;
@@ -237,22 +232,19 @@ createApp({
     const viewMode = ref("tree");
     const includeCrystals = ref(true);
 
-    // ── 儲存配方（最多 5 筆） ──────────────────────────────────────────────────
     const MAX_SAVED = 5;
     const LS_RECIPES_KEY = "ff14_saved_recipes";
     const LS_PRICES_KEY = "ff14_saved_prices";
-    const savedRecipes = ref([]); // [{ resultId, name, yield }]
+    const savedRecipes = ref([]); 
 
-    // ── 歷史紀錄（最多 3 筆） ──────────────────────────────────────────────────
     const MAX_HISTORY = 3;
     const LS_HISTORY_KEY = "ff14_history_recipes";
     const historyRecipes = ref([]);
 
-    // 手機板選單切換狀態
     const isMobileSidebarOpen = ref(false);
 
     const isLoading = ref(true);
-    const loadingMsg = ref("正在連線取得配方與中文翻譯庫 (~15MB)...");
+    const loadingMsg = ref("正在連線取得高效能配方庫...");
 
     let rawRecipes = {};
     let rawItemNames = {};
@@ -261,43 +253,60 @@ createApp({
     provide("methods", methods);
     provide("includeCrystals", includeCrystals);
 
-    // ── 資料載入 ──────────────────────────────────────────────────────────────
+    // ── 資料載入 (更新為 MessagePack 邏輯) ───────────────────────────────────
     const initData = async () => {
       try {
-        loadingMsg.value = "正在下載中文物品資料庫... (請稍候)";
-        rawItemNames = await (await fetch(ITEMS_TW_URL)).json();
+        loadingMsg.value = "正在下載高效能資料庫... (請稍候)";
+        
+        // 抓取 msgpack 二進位檔案
+        const [itemsRes, recipesRes] = await Promise.all([
+          fetch(ITEMS_TW_URL),
+          fetch(RECIPES_URL)
+        ]);
 
-        loadingMsg.value = "正在下載配方資料庫... (檔案較大，請耐心等待)";
-        const recipesArray = await (await fetch(RECIPES_URL)).json();
+        if (!itemsRes.ok || !recipesRes.ok) {
+          throw new Error("無法讀取資料檔案，請確認 data 資料夾中是否存在 msgpack 檔案。");
+        }
+
+        // 讀取為 ArrayBuffer
+        const itemsBuffer = await itemsRes.arrayBuffer();
+        const recipesBuffer = await recipesRes.arrayBuffer();
+
+        loadingMsg.value = "正在解析資料...";
+        // 使用 MessagePack 解碼
+        rawItemNames = MessagePack.decode(new Uint8Array(itemsBuffer));
+        const recipesArray = MessagePack.decode(new Uint8Array(recipesBuffer));
 
         loadingMsg.value = "正在建立計算機索引...";
-        // 放開主線程，避免 UI 凍結
         await new Promise((r) => setTimeout(r, 10));
 
-        for (const r of Object.values(recipesArray)) {
-          if (!resultToRecipeMap[r.result]) resultToRecipeMap[r.result] = r;
+        // 建立索引 (注意鍵名改為瘦身版的 r.res)
+        for (const r of recipesArray) {
+          if (r && r.res && !resultToRecipeMap[r.res]) {
+            resultToRecipeMap[r.res] = r;
+          }
         }
         rawRecipes = recipesArray;
         isLoading.value = false;
 
-        // 資料載入完畢後，才能安全讀取 localStorage（配方 rebuild 需要 resultToRecipeMap）
         const storedPrices = JSON.parse(localStorage.getItem(LS_PRICES_KEY) || "{}");
         Object.assign(prices, storedPrices);
         savedRecipes.value = JSON.parse(localStorage.getItem(LS_RECIPES_KEY) || "[]");
         historyRecipes.value = JSON.parse(localStorage.getItem(LS_HISTORY_KEY) || "[]");
       } catch (err) {
         console.error("Data loading error:", err);
-        loadingMsg.value = "資料庫載入失敗，可能發生網路錯誤。請重新整理。";
+        loadingMsg.value = `資料庫載入失敗：${err.message}`;
       }
     };
 
-    // ── 建立配方樹 ────────────────────────────────────────────────────────────
+    // ── 建立配方樹 (更新鍵名對應) ─────────────────────────────────────────────
     const buildRecipeTree = (recipeObj) => {
-      const resultId = recipeObj.result;
-      const itemName = rawItemNames[resultId]?.tw ?? `Unknown Item (${resultId})`;
+      const resultId = recipeObj.res; // 瘦身版鍵名
+      // 瘦身版結構直接是對應字串，不再有 .tw
+      const itemName = rawItemNames[resultId] ?? `Unknown Item (${resultId})`;
 
-      const materials = (recipeObj.ingredients ?? []).map((ing) => {
-        const matName = rawItemNames[ing.id]?.tw ?? `Unknown Item (${ing.id})`;
+      const materials = (recipeObj.ing ?? []).map((ing) => {
+        const matName = rawItemNames[ing.id] ?? `Unknown Item (${ing.id})`;
         const isCrystal = ing.id >= 2 && ing.id <= 19;
         const subRecipe = resultToRecipeMap[ing.id];
 
@@ -305,16 +314,16 @@ createApp({
           ? {
               id: ing.id,
               name: matName,
-              quantity: ing.amount,
+              quantity: ing.amt, // 瘦身版鍵名
               isCraftable: true,
               isCrystal,
-              yield: subRecipe.yields || 1,
+              yield: subRecipe.yld || 1, // 瘦身版鍵名
               subMaterials: buildRecipeTree(subRecipe).materials,
             }
           : {
               id: ing.id,
               name: matName,
-              quantity: ing.amount,
+              quantity: ing.amt, // 瘦身版鍵名
               isCraftable: false,
               isCrystal,
               yield: 1,
@@ -326,12 +335,12 @@ createApp({
         id: recipeObj.id,
         resultId,
         name: itemName,
-        yield: recipeObj.yields || 1,
+        yield: recipeObj.yld || 1, // 瘦身版鍵名
         materials,
       };
     };
 
-    // ── 搜尋 ──────────────────────────────────────────────────────────────────
+    // ── 搜尋 (更新鍵名對應) ───────────────────────────────────────────────────
     const doSearch = () => {
       if (!searchQuery.value || searchQuery.value.length < 2) {
         searchResults.value = [];
@@ -339,14 +348,16 @@ createApp({
       }
       const q = searchQuery.value.toLowerCase();
       const results = [];
-      for (const [itemId, names] of Object.entries(rawItemNames)) {
-        if (names.tw?.toLowerCase().includes(q)) {
+      
+      // rawItemNames 的 value 現在直接是字串
+      for (const [itemId, name] of Object.entries(rawItemNames)) {
+        if (name?.toLowerCase().includes(q)) {
           const possibleRecipe = resultToRecipeMap[itemId];
           if (possibleRecipe) {
             results.push({
               rawRecipe: possibleRecipe,
-              name: names.tw,
-              yield: possibleRecipe.yields || 1,
+              name: name,
+              yield: possibleRecipe.yld || 1, // 瘦身版鍵名
             });
             if (results.length >= 50) break;
           }
@@ -368,13 +379,11 @@ createApp({
       }
       isMobileSidebarOpen.value = false;
 
-      // ── 新增至歷史紀錄 ──────────────────────────────────────────────────
       const newHist = {
         resultId: selectedRecipe.value.resultId,
         name: selectedRecipe.value.name,
         yield: selectedRecipe.value.yield
       };
-      // 移除原有的（如果有的話），將新的推到最前面
       historyRecipes.value = historyRecipes.value.filter(h => h.resultId !== newHist.resultId);
       historyRecipes.value.unshift(newHist);
       if (historyRecipes.value.length > MAX_HISTORY) {
@@ -385,12 +394,10 @@ createApp({
 
     onMounted(initData);
 
-    // prices 變動時自動存回 localStorage
     watch(prices, (val) => {
       localStorage.setItem(LS_PRICES_KEY, JSON.stringify(val));
     }, { deep: true });
 
-    // ── 儲存/讀取配方 ─────────────────────────────────────────────────────────
     const saveCurrentRecipe = () => {
       if (!selectedRecipe.value) return;
       const { resultId, name } = selectedRecipe.value;
@@ -403,7 +410,6 @@ createApp({
         return;
       }
 
-      // 已存在則移到最前（更新），否則新增
       const filtered = savedRecipes.value.filter((r) => r.resultId !== resultId);
       filtered.unshift({ resultId, name, yield: yieldQty });
       savedRecipes.value = filtered;
@@ -426,7 +432,6 @@ createApp({
       return savedRecipes.value.some((r) => r.resultId === selectedRecipe.value.resultId);
     });
 
-    // ── 結算計算 ──────────────────────────────────────────────────────────────
     const totalCost = computed(() => {
       if (!selectedRecipe.value) return 0;
       let total = 0;
@@ -497,14 +502,12 @@ createApp({
       isLoading,
       loadingMsg,
       isMobileSidebarOpen,
-      // 儲存配方
       savedRecipes,
       saveCurrentRecipe,
       removeSavedRecipe,
       loadSavedRecipe,
       isCurrentSaved,
       MAX_SAVED,
-      // 歷史紀錄
       historyRecipes,
     };
   },
